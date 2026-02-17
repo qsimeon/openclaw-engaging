@@ -1,0 +1,50 @@
+Bootstrap: docker
+From: ghcr.io/openclaw/openclaw:main
+
+%post
+  # Create a wrapper script so "openclaw" works from any CWD.
+  # The app lives at /app (Docker WORKDIR), but Apptainer defaults
+  # to the host CWD, so we need to cd into /app before running.
+  cat > /usr/local/bin/openclaw << 'WRAPPER'
+#!/bin/sh
+cd /app
+exec node openclaw.mjs "$@"
+WRAPPER
+  chmod +x /usr/local/bin/openclaw
+
+%environment
+  export NODE_ENV=production
+
+%runscript
+  cd /app
+  exec node openclaw.mjs "$@"
+
+%labels
+  Author OpenClaw Contributors
+  Description OpenClaw AI Agent for HPC environments
+  URL https://github.com/openclaw/openclaw
+
+%help
+  OpenClaw — AI assistant platform for HPC.
+
+  Built for MIT Engaging cluster (Apptainer/Singularity). Sessions persist
+  on your home directory so conversations survive job preemption.
+
+  Quick start:
+    # Build (on a compute node)
+    srun --mem=4G --time=00:30:00 --cpus-per-task=2 \
+      apptainer build openclaw.sif openclaw.def
+
+    # Configure
+    mkdir -p ~/.openclaw
+    echo 'ANTHROPIC_API_KEY=sk-ant-...' > ~/.openclaw/.env
+    chmod 600 ~/.openclaw/.env
+
+    # Run
+    apptainer exec openclaw.sif \
+      openclaw agent --local --agent main -m "Hello!"
+
+    # Resume after a job ends — same command picks up where you left off
+
+  State:   ~/.openclaw/ (auto-mounted from host)
+  Guide:   docs/engaging-apptainer-guide.md
