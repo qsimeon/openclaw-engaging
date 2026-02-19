@@ -84,6 +84,19 @@ async function handleServiceNotLoaded(params: {
   }
 }
 
+async function resolveServiceLoadedOrFail(params: {
+  serviceNoun: string;
+  service: GatewayService;
+  fail: ReturnType<typeof createActionIO>["fail"];
+}): Promise<boolean | null> {
+  try {
+    return await params.service.isLoaded({ env: process.env });
+  } catch (err) {
+    params.fail(`${params.serviceNoun} service check failed: ${String(err)}`);
+    return null;
+  }
+}
+
 export async function runServiceUninstall(params: {
   serviceNoun: string;
   service: GatewayService;
@@ -145,11 +158,12 @@ export async function runServiceStart(params: {
   const json = Boolean(params.opts?.json);
   const { stdout, emit, fail } = createActionIO({ action: "start", json });
 
-  let loaded = false;
-  try {
-    loaded = await params.service.isLoaded({ env: process.env });
-  } catch (err) {
-    fail(`${params.serviceNoun} service check failed: ${String(err)}`);
+  const loaded = await resolveServiceLoadedOrFail({
+    serviceNoun: params.serviceNoun,
+    service: params.service,
+    fail,
+  });
+  if (loaded === null) {
     return;
   }
   if (!loaded) {
@@ -192,11 +206,12 @@ export async function runServiceStop(params: {
   const json = Boolean(params.opts?.json);
   const { stdout, emit, fail } = createActionIO({ action: "stop", json });
 
-  let loaded = false;
-  try {
-    loaded = await params.service.isLoaded({ env: process.env });
-  } catch (err) {
-    fail(`${params.serviceNoun} service check failed: ${String(err)}`);
+  const loaded = await resolveServiceLoadedOrFail({
+    serviceNoun: params.serviceNoun,
+    service: params.service,
+    fail,
+  });
+  if (loaded === null) {
     return;
   }
   if (!loaded) {
@@ -236,15 +251,17 @@ export async function runServiceRestart(params: {
   service: GatewayService;
   renderStartHints: () => string[];
   opts?: DaemonLifecycleOptions;
+  checkTokenDrift?: boolean;
 }): Promise<boolean> {
   const json = Boolean(params.opts?.json);
   const { stdout, emit, fail } = createActionIO({ action: "restart", json });
 
-  let loaded = false;
-  try {
-    loaded = await params.service.isLoaded({ env: process.env });
-  } catch (err) {
-    fail(`${params.serviceNoun} service check failed: ${String(err)}`);
+  const loaded = await resolveServiceLoadedOrFail({
+    serviceNoun: params.serviceNoun,
+    service: params.service,
+    fail,
+  });
+  if (loaded === null) {
     return false;
   }
   if (!loaded) {
@@ -259,31 +276,33 @@ export async function runServiceRestart(params: {
     return false;
   }
 
-  // Check for token drift before restart (service token vs config token)
   const warnings: string[] = [];
-  try {
-    const command = await params.service.readCommand(process.env);
-    const serviceToken = command?.environment?.OPENCLAW_GATEWAY_TOKEN;
-    const cfg = loadConfig();
-    const configToken =
-      cfg.gateway?.auth?.token ||
-      process.env.OPENCLAW_GATEWAY_TOKEN ||
-      process.env.CLAWDBOT_GATEWAY_TOKEN;
-    const driftIssue = checkTokenDrift({ serviceToken, configToken });
-    if (driftIssue) {
-      const warning = driftIssue.detail
-        ? `${driftIssue.message} ${driftIssue.detail}`
-        : driftIssue.message;
-      warnings.push(warning);
-      if (!json) {
-        defaultRuntime.log(`\n⚠️  ${driftIssue.message}`);
-        if (driftIssue.detail) {
-          defaultRuntime.log(`   ${driftIssue.detail}\n`);
+  if (params.checkTokenDrift) {
+    // Check for token drift before restart (service token vs config token)
+    try {
+      const command = await params.service.readCommand(process.env);
+      const serviceToken = command?.environment?.OPENCLAW_GATEWAY_TOKEN;
+      const cfg = loadConfig();
+      const configToken =
+        cfg.gateway?.auth?.token ||
+        process.env.OPENCLAW_GATEWAY_TOKEN ||
+        process.env.CLAWDBOT_GATEWAY_TOKEN;
+      const driftIssue = checkTokenDrift({ serviceToken, configToken });
+      if (driftIssue) {
+        const warning = driftIssue.detail
+          ? `${driftIssue.message} ${driftIssue.detail}`
+          : driftIssue.message;
+        warnings.push(warning);
+        if (!json) {
+          defaultRuntime.log(`\n⚠️  ${driftIssue.message}`);
+          if (driftIssue.detail) {
+            defaultRuntime.log(`   ${driftIssue.detail}\n`);
+          }
         }
       }
+    } catch {
+      // Non-fatal: token drift check is best-effort
     }
-  } catch {
-    // Non-fatal: token drift check is best-effort
   }
 
   try {

@@ -40,6 +40,7 @@ import {
   DEFAULT_PACKAGE_NAME,
   ensureGitCheckout,
   normalizeTag,
+  parseTimeoutMsOrExit,
   readPackageName,
   readPackageVersion,
   resolveGitInstallDir,
@@ -400,9 +401,10 @@ async function maybeRestartService(params: {
 
     try {
       let restarted = false;
+      let restartInitiated = false;
       if (params.restartScriptPath) {
         await runRestartScript(params.restartScriptPath);
-        restarted = true;
+        restartInitiated = true;
       } else {
         restarted = await runDaemonRestart();
       }
@@ -422,6 +424,16 @@ async function maybeRestartService(params: {
         } finally {
           delete process.env.OPENCLAW_UPDATE_IN_PROGRESS;
         }
+      }
+
+      if (!params.opts.json && restartInitiated) {
+        defaultRuntime.log(theme.success("Daemon restart initiated."));
+        defaultRuntime.log(
+          theme.muted(
+            `Verify with \`${replaceCliName(formatCliCommand("openclaw gateway status"), CLI_NAME)}\` once the gateway is back.`,
+          ),
+        );
+        defaultRuntime.log("");
       }
     } catch (err) {
       if (!params.opts.json) {
@@ -457,12 +469,9 @@ async function maybeRestartService(params: {
 export async function updateCommand(opts: UpdateCommandOptions): Promise<void> {
   suppressDeprecations();
 
-  const timeoutMs = opts.timeout ? Number.parseInt(opts.timeout, 10) * 1000 : undefined;
+  const timeoutMs = parseTimeoutMsOrExit(opts.timeout);
   const shouldRestart = opts.restart !== false;
-
-  if (timeoutMs !== undefined && (Number.isNaN(timeoutMs) || timeoutMs <= 0)) {
-    defaultRuntime.error("--timeout must be a positive integer (seconds)");
-    defaultRuntime.exit(1);
+  if (timeoutMs === null) {
     return;
   }
 
