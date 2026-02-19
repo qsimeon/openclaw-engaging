@@ -26,8 +26,10 @@ set -euo pipefail
 module load apptainer/1.4.2
 
 # --- Paths ---
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SIF_FILE="${OPENCLAW_SIF:-$SCRIPT_DIR/openclaw.sif}"
+# SBATCH copies the script to a spool dir, so BASH_SOURCE won't point
+# back to the repo.  Use SLURM_SUBMIT_DIR (the CWD at sbatch time) instead.
+REPO_DIR="${SLURM_SUBMIT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+SIF_FILE="${OPENCLAW_SIF:-$REPO_DIR/apptainer/openclaw.sif}"
 
 if [ ! -f "$SIF_FILE" ]; then
   echo "Error: Container not found at $SIF_FILE"

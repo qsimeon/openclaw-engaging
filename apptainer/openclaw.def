@@ -2,9 +2,9 @@ Bootstrap: docker
 From: ghcr.io/openclaw/openclaw:main
 
 %post
-  # Create a wrapper script so "openclaw" works from any CWD.
-  # The app lives at /app (Docker WORKDIR), but Apptainer defaults
-  # to the host CWD, so we need to cd into /app before running.
+  # ── CLI wrapper ───────────────────────────────────────────────────
+  # The app lives at /app (Docker WORKDIR), but Apptainer defaults to
+  # the host CWD, so we create a wrapper that cds into /app first.
   cat > /usr/local/bin/openclaw << 'WRAPPER'
 #!/bin/sh
 cd /app
@@ -12,8 +12,70 @@ exec node openclaw.mjs "$@"
 WRAPPER
   chmod +x /usr/local/bin/openclaw
 
+  # ── Skill dependencies ───────────────────────────────────────────
+  # Install system packages so OpenClaw skills work during onboarding.
+  # Without these, skills fail with "brew not installed" since
+  # Homebrew isn't available on Linux HPC.
+  #
+  # NOTE: openai-whisper is excluded — it pulls PyTorch + CUDA (~3GB)
+  # which causes OOM during mksquashfs on Engaging. Users who need
+  # whisper can install it to their home dir at runtime:
+  #   pip3 install --user openai-whisper
+
+  # Homebrew (Linuxbrew) — many OpenClaw skills use brew as their
+  # package manager. Installing it at build time means skills that
+  # require brew-installed binaries will work during onboarding.
+  NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || echo "homebrew: install failed (non-fatal)"
+  # Make brew available for the rest of %post
+  eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv 2>/dev/null)" || true
+
+  apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    ffmpeg \
+    git \
+    golang-go \
+    python3 \
+    python3-pip \
+    python3-venv \
+    wget \
+  && rm -rf /var/lib/apt/lists/*
+
+  # GitHub CLI (gh) — official apt repository
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    -o /usr/share/keyrings/githubcli-archive-keyring.gpg
+  chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list
+  apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
+
+  # uv (fast Python package manager, needed by nano-pdf skill)
+  curl -LsSf https://astral.sh/uv/install.sh | env INSTALLER_NO_MODIFY_PATH=1 sh
+  mv /root/.local/bin/uv /usr/local/bin/uv || true
+  mv /root/.local/bin/uvx /usr/local/bin/uvx || true
+
+  # himalaya (email CLI) — pre-built Linux binary
+  HIMALAYA_VERSION="v1.0.0"
+  curl -fsSL "https://github.com/pimalaya/himalaya/releases/download/${HIMALAYA_VERSION}/himalaya.linux.x86_64.tar.gz" \
+    | tar -xz -C /usr/local/bin/ || echo "himalaya: binary download failed (non-fatal)"
+
+  # Gemini CLI (Google) — npm package
+  npm install -g @google/gemini-cli 2>/dev/null || echo "gemini-cli: npm install failed (non-fatal)"
+
+  # mcporter — npm package
+  npm install -g mcporter 2>/dev/null || echo "mcporter: npm install failed (non-fatal)"
+
 %environment
   export NODE_ENV=production
+  # Homebrew (Linuxbrew)
+  export HOMEBREW_PREFIX=/home/linuxbrew/.linuxbrew
+  export PATH=$HOMEBREW_PREFIX/bin:$HOMEBREW_PREFIX/sbin:$HOME/.npm-global/bin:$HOME/go/bin:$HOME/.local/bin:$PATH
+  # Redirect runtime package installs to user's home dir (writable, persistent).
+  # The SIF filesystem is read-only, so npm/pip/go must write to $HOME.
+  export NPM_CONFIG_PREFIX=$HOME/.npm-global
+  export UV_CACHE_DIR=$HOME/.cache/uv
+  export GOPATH=$HOME/go
+  export PIP_CACHE_DIR=$HOME/.cache/pip
 
 %runscript
   cd /app
@@ -30,21 +92,21 @@ WRAPPER
   Built for MIT Engaging cluster (Apptainer/Singularity). Sessions persist
   on your home directory so conversations survive job preemption.
 
-  Quick start:
-    # Build (on a compute node)
-    srun --mem=4G --time=00:30:00 --cpus-per-task=2 \
-      apptainer build openclaw.sif openclaw.def
+  Includes Homebrew (Linuxbrew) and skill deps: ffmpeg, gh, python3,
+  golang, uv, himalaya, gemini-cli, mcporter.
 
-    # Configure
-    mkdir -p ~/.openclaw
-    echo 'ANTHROPIC_API_KEY=sk-ant-...' > ~/.openclaw/.env
-    chmod 600 ~/.openclaw/.env
+  Quick start (from the openclaw-engaging repo):
+    # Build (on a compute node, ~10 min)
+    srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
+      apptainer build apptainer/openclaw.sif apptainer/openclaw.def
+
+    # Set up your agent (interactive wizard)
+    srun --pty --mem=1G --time=00:30:00 \
+      apptainer exec apptainer/openclaw.sif openclaw onboard --skip-daemon
 
     # Run
-    apptainer exec openclaw.sif \
+    apptainer exec apptainer/openclaw.sif \
       openclaw agent --local --agent main -m "Hello!"
-
-    # Resume after a job ends — same command picks up where you left off
 
   State:   ~/.openclaw/ (auto-mounted from host)
   Guide:   docs/engaging-apptainer-guide.md
