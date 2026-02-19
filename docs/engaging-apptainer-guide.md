@@ -84,7 +84,7 @@ over HTTPS.
 
 ---
 
-## Step 1: Build the Container
+## Step 1: Clone and Build
 
 SSH into Engaging and run:
 
@@ -93,6 +93,21 @@ SSH into Engaging and run:
 git clone https://github.com/qsimeon/openclaw-engaging.git
 cd openclaw-engaging
 
+# Add the upstream OpenClaw repo (for pulling future updates)
+git remote add upstream https://github.com/openclaw/openclaw.git
+```
+
+Verify your remotes:
+
+```bash
+git remote -v
+# origin    https://github.com/qsimeon/openclaw-engaging.git (fetch)
+# upstream  https://github.com/openclaw/openclaw.git (fetch)
+```
+
+Now build the container:
+
+```bash
 # Load Apptainer
 module load apptainer/1.4.2
 
@@ -103,7 +118,7 @@ srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
 ```
 
 This pulls the same Docker image used by DigitalOcean and packages it as an
-Apptainer `.sif` file, with Homebrew and skill dependencies pre-installed.
+Apptainer `.sif` file.
 
 Verify:
 
@@ -181,6 +196,17 @@ apptainer exec apptainer/openclaw.sif \
 > service so the gateway runs 24/7. Engaging doesn't have systemd on compute
 > nodes, so we skip that. Instead, you run agents on-demand through SLURM,
 > and sessions persist on your home directory between runs.
+
+> **Skill install failures are normal.** Some skills require Homebrew taps
+> that can't be installed inside the read-only container. You'll see
+> "brew not installed" errors — **this is fine**. The core agent and most
+> skills (web search, file tools, code execution, etc.) work regardless.
+> You can install missing skill dependencies later in your home directory.
+
+> **Health check "SECURITY ERROR" about ws://.** The wizard warns that the
+> gateway uses plaintext `ws://` on a non-loopback address. This is expected
+> — on Engaging you connect via an encrypted SSH tunnel, so the traffic is
+> secure. You can safely ignore this warning.
 
 ---
 
@@ -533,24 +559,18 @@ recipes added. When the upstream project releases updates (new features,
 bug fixes, model support), you can pull those in without losing any of your
 Apptainer or config changes.
 
-### One-time setup (add the upstream remote)
-
-If you cloned from `openclaw-engaging`, it only has one remote (`origin`).
-Add the original repo as `upstream`:
-
-```bash
-cd ~/openclaw-engaging
-git remote add upstream https://github.com/openclaw/openclaw.git
-```
-
-Verify:
+If you followed Step 1, you already have `upstream` configured. Verify:
 
 ```bash
 git remote -v
-# origin    https://github.com/qsimeon/openclaw-engaging.git (fetch)
-# origin    https://github.com/qsimeon/openclaw-engaging.git (push)
-# upstream  https://github.com/openclaw/openclaw.git (fetch)
-# upstream  https://github.com/openclaw/openclaw.git (push)
+# origin    .../openclaw-engaging.git (fetch)
+# upstream  .../openclaw.git (fetch)
+```
+
+If `upstream` is missing, add it:
+
+```bash
+git remote add upstream https://github.com/openclaw/openclaw.git
 ```
 
 ### Pull in upstream updates
