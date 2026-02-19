@@ -116,7 +116,7 @@ Build: `module load apptainer/1.4.2 && srun --mem=4G --time=00:30:00 --cpus-per-
 
 Full guide: `docs/engaging-apptainer-guide.md`
 
-Key design: all state lives on `~/.openclaw/` (NFS home directory), so sessions survive SLURM job preemption. Config sets `session.reset.mode: "never"` for HPC use.
+Key design: all state lives on `~/.openclaw/` (NFS home directory), so sessions survive SLURM job preemption. Config sets `session.reset.mode: "idle"` with a 1-year timeout for HPC use.
 
 ## Style Notes
 

@@ -143,8 +143,8 @@ launching the wizard:
 - **Sandbox: off** — disables Docker-in-Docker sandboxing (not available
   inside Apptainer). Without this, the agent can't run shell commands or
   access your files.
-- **Session reset: never** — prevents sessions from being auto-discarded
-  after idle time. Critical for HPC where jobs get preempted.
+- **Session idle timeout: 1 year** — effectively disables auto-reset so
+  sessions survive job preemption and cluster maintenance.
 - **Gateway: LAN bind, port 18790, device auth disabled** — the gateway
   binds to all interfaces so it's reachable via SSH tunnel, and device
   pairing is disabled since the SSH tunnel itself provides security.
@@ -368,9 +368,10 @@ Your home directory is:
 2. Session transcripts have been flushed to disk throughout the run
 3. Next time you run the agent, it picks up where it left off
 
-The setup wizard configures `session.reset.mode: "never"` so sessions are
-never automatically discarded. On a VPS the default 30-minute idle timeout
-makes sense, but on HPC you want conversations to survive indefinitely.
+The setup script configures `session.reset.mode: "idle"` with a 1-year
+timeout so sessions are effectively never discarded. On a VPS the default
+daily reset makes sense, but on HPC you want conversations to survive
+indefinitely across job preemptions.
 
 ### Resuming
 

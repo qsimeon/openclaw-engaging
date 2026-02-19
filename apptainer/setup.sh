@@ -112,7 +112,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
   },
   "session": {
     "reset": {
-      "mode": "never"
+      "mode": "idle",
+      "idleMinutes": 525600
     }
   },
   "gateway": {
@@ -126,7 +127,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 EOF
   echo "Created HPC-friendly config at $CONFIG_FILE"
   echo "  • Sandbox: off (no Docker-in-Docker on HPC)"
-  echo "  • Session reset: never (survives job preemption)"
+  echo "  • Session idle timeout: 1 year (effectively never — survives job preemption)"
   echo "  • Gateway: port 18790, LAN bind, device auth disabled (SSH tunnel)"
 fi
 
