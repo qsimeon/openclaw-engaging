@@ -306,10 +306,23 @@ ssh -f -N -L 18790:<node>:18790 <username>@<login-node>
 | `<login-node>` | Your login host (e.g., `eofe10.mit.edu` or `orcd-login.mit.edu`) |
 
 `-f` backgrounds the tunnel so you keep your terminal. `-N` means no remote
-shell — it only forwards the port. To close the tunnel later:
+shell — it only forwards the port.
+
+**Keep the tunnel alive across laptop sleep/wake** — use `autossh` instead
+of plain `ssh`. It automatically reconnects when the tunnel drops:
 
 ```bash
-ps aux | grep "ssh -f -N" | grep 18790   # find the PID
+# Install once: brew install autossh (Mac) or apt install autossh (Linux)
+autossh -M 0 -f -N -L 18790:<node>:18790 <username>@<login-node>
+```
+
+`-M 0` disables the monitoring port and relies on SSH's own keepalive
+(set `ServerAliveInterval 60` in your `~/.ssh/config`).
+
+To close the tunnel later:
+
+```bash
+ps aux | grep autossh | grep 18790   # find the PID
 kill <pid>
 ```
 
