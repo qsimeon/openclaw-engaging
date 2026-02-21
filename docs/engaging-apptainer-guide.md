@@ -180,8 +180,7 @@ apptainer exec apptainer/openclaw.sif openclaw onboard --skip-daemon
 If you use Option B, also disable sandboxing:
 
 ```bash
-apptainer exec apptainer/openclaw.sif \
-  openclaw config set agents.defaults.sandbox.mode off
+openclaw config set agents.defaults.sandbox.mode off
 ```
 
 ### What the wizard covers
@@ -210,7 +209,40 @@ apptainer exec apptainer/openclaw.sif \
 
 ---
 
-## Step 3: Use Your Agent
+## Step 3: The `openclaw` Command
+
+On DigitalOcean, OpenClaw is installed globally via npm so you just type
+`openclaw ...`. On Engaging, the app lives inside a read-only Apptainer
+container, so normally you'd need `apptainer exec apptainer/openclaw.sif
+openclaw ...` every time.
+
+The `setup.sh` script eliminates this by adding an `openclaw` alias to your
+`~/.bashrc`. After setup, activate it:
+
+```bash
+source ~/.bashrc
+```
+
+Now you can use `openclaw` directly — it handles module loading and container
+paths for you:
+
+```bash
+openclaw --help          # same output as DigitalOcean
+openclaw --version
+openclaw configure
+openclaw doctor
+openclaw sessions
+```
+
+> If the alias wasn't installed (e.g., you used Option B), add it manually:
+> ```bash
+> echo "alias openclaw='~/openclaw-engaging/apptainer/openclaw-engaging.sh'" >> ~/.bashrc
+> source ~/.bashrc
+> ```
+
+---
+
+## Step 4: Use Your Agent
 
 Once onboarding is done, you have a fully configured agent. Here are the
 three ways to use it:
@@ -218,24 +250,21 @@ three ways to use it:
 ### One-shot query
 
 ```bash
-module load apptainer/1.4.2
-apptainer exec apptainer/openclaw.sif \
-  openclaw agent --local --agent main -m "Hello from Engaging!"
+openclaw agent --local --agent main -m "Hello from Engaging!"
 ```
 
 ### Interactive session on a compute node
 
 ```bash
 srun --pty --mem=1G --time=02:00:00 bash
-module load apptainer/1.4.2
-apptainer exec apptainer/openclaw.sif \
-  openclaw agent --local --agent main \
+openclaw agent --local --agent main \
   -m "I have CSV files in ~/my-project/data/. Help me explore them."
 ```
 
 ### Batch job (unattended)
 
 ```bash
+cd ~/openclaw-engaging
 OPENCLAW_PROMPT="Summarize all CSV files in ~/my-project/data/" \
   sbatch apptainer/slurm-openclaw.sh
 ```
@@ -254,7 +283,7 @@ apptainer exec -B /pool/lab-data:/data apptainer/openclaw.sif \
 
 ---
 
-## Step 4: Gateway & Dashboard (Browser Access)
+## Step 5: Gateway & Dashboard (Browser Access)
 
 The gateway is a long-running server that serves the web dashboard and
 processes messages from connected channels (Telegram, Discord, etc.). On
@@ -264,26 +293,26 @@ reach it from your laptop via SSH tunnel.
 
 ### Start the gateway
 
+The launcher submits the SLURM job, waits for it to start, and prints the
+connection info automatically — no need to hunt for output files:
+
 ```bash
 cd ~/openclaw-engaging
-sbatch apptainer/slurm-gateway.sh
+./apptainer/start-gateway.sh
 ```
 
-### Get the connection info
+If a gateway is already running, it shows the existing connection info
+instead of starting a second one.
 
-The job output prints everything you need — just copy and paste:
-
-```bash
-squeue -u $USER          # find the job ID and node
-cat openclaw-gw-<jobid>.out   # print SSH command + dashboard URL
-```
+> **Manual alternative:** `sbatch apptainer/slurm-gateway.sh` then
+> `cat openclaw-gw-<jobid>.out` to see the connection info.
 
 You'll see output like:
 
 ```
-  1) SSH tunnel (run on your laptop):
+  1) SSH tunnel (run on your laptop — kills any old tunnel first):
 
-     ssh -f -N -L 18790:node1234:18790 <user>@eofe10.mit.edu
+     lsof -ti:18790 | xargs kill -9 2>/dev/null; autossh -M 0 -f -N -L 18790:node1234:18790 <user>@<login-node>
 
   2) Open in your browser:
 
@@ -292,39 +321,41 @@ You'll see output like:
 
 ### Connect from your laptop
 
-**a) Open the SSH tunnel.** On your local machine, run the SSH command from
-the job output:
+**a) Open the SSH tunnel.** On your local machine, run the tunnel command
+from the output:
 
 ```bash
-ssh -f -N -L 18790:<node>:18790 <username>@<login-node>
+lsof -ti:18790 | xargs kill -9 2>/dev/null; autossh -M 0 -f -N -L 18790:<node>:18790 <username>@<login-node>
 ```
+
+The `lsof ... | xargs kill` prefix clears any stale tunnel on that port
+first — autossh silently fails if the port is already occupied. The whole
+line is safe to copy-paste every time.
 
 | Placeholder | Replace with |
 |---|---|
-| `<node>` | Compute node from `squeue` (e.g., `node1600`) |
+| `<node>` | Compute node from the output (e.g., `node3311`) |
 | `<username>` | Your Engaging username |
 | `<login-node>` | Your login host (e.g., `eofe10.mit.edu` or `orcd-login.mit.edu`) |
 
-`-f` backgrounds the tunnel so you keep your terminal. `-N` means no remote
-shell — it only forwards the port.
+`autossh` automatically reconnects the tunnel if your laptop sleeps or the
+connection drops. `-M 0` **must come first** — it tells autossh to rely on
+SSH keepalive instead of a monitoring port.
 
-**Keep the tunnel alive across laptop sleep/wake** — use `autossh` instead
-of plain `ssh`. It automatically reconnects when the tunnel drops:
+Install autossh once: `brew install autossh` (Mac) or `apt install autossh`
+(Linux).
 
-```bash
-# Install once: brew install autossh (Mac) or apt install autossh (Linux)
-autossh -M 0 -f -N -L 18790:<node>:18790 <username>@<login-node>
+Also add these to your `~/.ssh/config` so SSH detects dead connections:
+
+```
+Host *
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
 ```
 
-`-M 0` disables the monitoring port and relies on SSH's own keepalive
-(set `ServerAliveInterval 60` in your `~/.ssh/config`).
-
-To close the tunnel later:
-
-```bash
-ps aux | grep autossh | grep 18790   # find the PID
-kill <pid>
-```
+> **If you don't have autossh**, use plain ssh:
+> `lsof -ti:18790 | xargs kill -9 2>/dev/null; ssh -f -N -L 18790:<node>:18790 <username>@<login-node>`
+> You'll just need to re-run if the tunnel drops after laptop sleep.
 
 **b) Open the dashboard.** Paste the full URL from the job output into your
 browser. The URL includes the auth token (`?token=...`), which authenticates
@@ -416,9 +447,7 @@ indefinitely across job preemptions.
 
 ```bash
 # Same command as before — automatically resumes the last session
-apptainer exec apptainer/openclaw.sif \
-  openclaw agent --local --agent main \
-  -m "Continue where we left off."
+openclaw agent --local --agent main -m "Continue where we left off."
 ```
 
 ### Starting fresh
@@ -426,10 +455,9 @@ apptainer exec apptainer/openclaw.sif \
 Create a new named agent for a different project:
 
 ```bash
-apptainer exec apptainer/openclaw.sif openclaw agents add my-new-project
+openclaw agents add my-new-project
 
-apptainer exec apptainer/openclaw.sif \
-  openclaw agent --local --agent my-new-project \
+openclaw agent --local --agent my-new-project \
   -m "Starting a brand new analysis..."
 ```
 
@@ -442,18 +470,18 @@ individual sections:
 
 ```bash
 # Interactive menu of all config sections
-apptainer exec apptainer/openclaw.sif openclaw configure
+openclaw configure
 
 # Update just one section
-apptainer exec apptainer/openclaw.sif openclaw configure --section model
-apptainer exec apptainer/openclaw.sif openclaw configure --section channels
-apptainer exec apptainer/openclaw.sif openclaw configure --section skills
+openclaw configure --section model
+openclaw configure --section channels
+openclaw configure --section skills
 
 # Health check & diagnostics
-apptainer exec apptainer/openclaw.sif openclaw doctor
+openclaw doctor
 
 # List active sessions
-apptainer exec apptainer/openclaw.sif openclaw sessions
+openclaw sessions
 ```
 
 ---
@@ -679,11 +707,10 @@ connect through an SSH tunnel, the gateway sees a remote IP. The fix is to
 disable device auth for the Control UI (token auth still protects access):
 
 ```bash
-apptainer exec apptainer/openclaw.sif \
-  openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
 ```
 
-Then restart the gateway: `scancel <jobid> && sbatch apptainer/slurm-gateway.sh`
+Then restart the gateway: `scancel <jobid> && cd ~/openclaw-engaging && sbatch apptainer/slurm-gateway.sh`
 
 The `setup.sh` script pre-configures this automatically.
 
@@ -699,8 +726,7 @@ The `setup.sh` script pre-configures this automatically.
 Disable sandboxing — Docker-in-Docker doesn't work inside Apptainer:
 
 ```bash
-apptainer exec apptainer/openclaw.sif \
-  openclaw config set agents.defaults.sandbox.mode off
+openclaw config set agents.defaults.sandbox.mode off
 ```
 
 The `setup.sh` script does this automatically.
