@@ -640,6 +640,34 @@ srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
 Your `~/.openclaw/` config and sessions are unaffected — only the container
 image changes.
 
+### Automated updates with `update.sh`
+
+Instead of running the manual steps above, you can use the `update.sh` script
+to handle the full cycle — fetch, merge, and rebuild — in one command:
+
+```bash
+cd ~/openclaw-engaging
+./apptainer/update.sh
+```
+
+The script will:
+1. Add the `upstream` remote if it's missing
+2. Fetch upstream and show how many new commits are available
+3. Merge `upstream/main` (aborts cleanly if there are conflicts)
+4. Prompt you to rebuild the container via `srun`
+5. Print the new OpenClaw version after the build
+
+To **check for updates without applying them**:
+
+```bash
+./apptainer/update.sh --check
+```
+
+This prints a one-line notice if updates are available, or nothing if you're
+already up to date. The gateway launcher (`start-gateway.sh`) runs this
+automatically every time you start the gateway — so you'll see a reminder
+if upstream has new commits.
+
 ---
 
 ## Troubleshooting

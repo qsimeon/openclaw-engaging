@@ -109,14 +109,18 @@ src/
 The `apptainer/` directory contains recipes for running OpenClaw on the MIT Engaging HPC cluster:
 
 - `openclaw.def` — Apptainer definition file (pulls official Docker image)
-- `setup.sh` — Automated build + config helper
-- `slurm-openclaw.sh` — SLURM batch job template
+- `setup.sh` — Automated build + config helper (1-click deploy)
+- `slurm-openclaw.sh` — SLURM batch job template for agent
+- `slurm-gateway.sh` — SLURM job for the gateway server (dashboard + channels)
+- `start-gateway.sh` — 1-click gateway launcher (submits job, waits, prints connection info)
+- `update.sh` — Automated upstream sync: fetch + merge + rebuild (`--check` for check-only)
+- `openclaw-engaging.sh` — Convenience wrapper (API key passthrough, module loading)
 
-Build: `module load apptainer/1.4.2 && srun --mem=4G --time=00:30:00 --cpus-per-task=2 apptainer build apptainer/openclaw.sif apptainer/openclaw.def`
+Build: `module load apptainer/1.4.2 && srun --mem=8G --time=01:00:00 --cpus-per-task=2 apptainer build apptainer/openclaw.sif apptainer/openclaw.def`
 
 Full guide: `docs/engaging-apptainer-guide.md`
 
-Key design: all state lives on `~/.openclaw/` (NFS home directory), so sessions survive SLURM job preemption. Config sets `session.reset.mode: "idle"` with a 1-year timeout for HPC use.
+Key design: all state lives on `~/.openclaw/` (NFS home directory), so sessions survive SLURM job preemption. Config sets `session.reset.mode: "idle"` with a 1-year timeout for HPC use. The gateway launcher auto-checks for upstream updates on every launch.
 
 ## Style Notes
 

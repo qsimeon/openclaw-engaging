@@ -38,6 +38,9 @@ if [ -n "$EXISTING" ]; then
   exit 0
 fi
 
+# --- Check for upstream updates ---
+"$SCRIPT_DIR/update.sh" --check 2>/dev/null || true
+
 # --- Submit the job ---
 echo "Submitting gateway job..."
 OUTPUT=$(cd "$REPO_DIR" && sbatch "$SLURM_SCRIPT" 2>&1)

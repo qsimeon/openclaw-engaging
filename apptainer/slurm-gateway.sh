@@ -44,7 +44,7 @@ ENV_FLAGS=""
 
 PORT="${OPENCLAW_GATEWAY_PORT:-18790}"
 NODE=$(hostname)
-LOGIN_NODE="${OPENCLAW_LOGIN_NODE:-${SLURM_SUBMIT_HOST:-<login-node>}}"
+LOGIN_NODE="${OPENCLAW_LOGIN_NODE:-orcd-login.mit.edu}"
 
 # --- Extract gateway auth token from config ---
 CONFIG_FILE="$HOME/.openclaw/openclaw.json"
