@@ -46,11 +46,11 @@ PORT="${OPENCLAW_GATEWAY_PORT:-18790}"
 NODE=$(hostname)
 LOGIN_NODE="${OPENCLAW_LOGIN_NODE:-orcd-login.mit.edu}"
 
-# --- Extract gateway auth token from config ---
+# --- Extract gateway auth token + ensure allowedOrigins ---
 CONFIG_FILE="$HOME/.openclaw/openclaw.json"
 TOKEN=""
 if [ -f "$CONFIG_FILE" ]; then
-  # Extract token using python3 (available on all Engaging nodes)
+  # Extract token and patch allowedOrigins if missing (required since upstream v2026.2.22+)
   TOKEN=$(python3 -c "
 import json, sys
 try:
@@ -58,6 +58,20 @@ try:
     print(cfg.get('gateway',{}).get('auth',{}).get('token',''))
 except: pass
 " 2>/dev/null)
+
+  # Ensure allowedOrigins is set (upstream now requires it for non-loopback)
+  python3 -c "
+import json, os
+cfg_path = '$CONFIG_FILE'
+with open(cfg_path) as f:
+    cfg = json.load(f)
+gw = cfg.setdefault('gateway', {})
+cui = gw.setdefault('controlUi', {})
+if 'allowedOrigins' not in cui:
+    cui['allowedOrigins'] = ['http://localhost:$PORT']
+    with open(cfg_path, 'w') as f:
+        json.dump(cfg, f, indent=2)
+" 2>/dev/null || true
 fi
 
 echo "╔══════════════════════════════════════════════════════════════╗"

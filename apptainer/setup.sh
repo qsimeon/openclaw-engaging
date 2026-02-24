@@ -121,7 +121,8 @@ if [ ! -f "$CONFIG_FILE" ]; then
     "port": 18790,
     "bind": "lan",
     "controlUi": {
-      "dangerouslyDisableDeviceAuth": true
+      "dangerouslyDisableDeviceAuth": true,
+      "allowedOrigins": ["http://localhost:18790"]
     }
   }
 }

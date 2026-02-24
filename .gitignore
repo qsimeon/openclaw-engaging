@@ -82,8 +82,6 @@ IDENTITY.md
 USER.md
 .tgz
 .idea
-docs/*.jsonl
-
 
 # local tooling
 .serena/

@@ -65,14 +65,43 @@ while [ $WAITED -lt $MAX_WAIT ]; do
 
   if [ -z "$STATE" ]; then
     echo ""
-    echo "Job $JOB_ID is no longer in the queue. Check:"
-    echo "  cat openclaw-gw-$JOB_ID.out"
-    echo "  cat openclaw-gw-$JOB_ID.err"
+    echo "Job $JOB_ID exited unexpectedly."
+    ERR_FILE="$REPO_DIR/openclaw-gw-$JOB_ID.err"
+    if [ -f "$ERR_FILE" ] && [ -s "$ERR_FILE" ]; then
+      echo ""
+      echo "Error log (openclaw-gw-$JOB_ID.err):"
+      tail -5 "$ERR_FILE"
+      echo ""
+      # Check for common errors and suggest fixes
+      if grep -q "allowedOrigins" "$ERR_FILE" 2>/dev/null; then
+        echo "Fix: The gateway now requires allowedOrigins for non-loopback binding."
+        echo "  Run: openclaw config set gateway.controlUi.allowedOrigins '[\"http://localhost:18790\"]'"
+        echo "  Then relaunch: ./apptainer/start-gateway.sh"
+      fi
+    else
+      echo "  Check: cat openclaw-gw-$JOB_ID.out"
+      echo "  Check: cat openclaw-gw-$JOB_ID.err"
+    fi
     exit 1
   fi
 
   # Once running, wait for the output file to have the connection info
   if [ "$STATE" = "RUNNING" ] && [ -f "$OUT_FILE" ]; then
+    # Check if the gateway already crashed (job running but process exited)
+    if grep -q "Gateway stopped at" "$OUT_FILE" 2>/dev/null; then
+      echo " failed!"
+      echo ""
+      ERR_FILE="$REPO_DIR/openclaw-gw-$JOB_ID.err"
+      echo "The gateway process exited. Check the error log:"
+      if [ -f "$ERR_FILE" ] && [ -s "$ERR_FILE" ]; then
+        echo ""
+        tail -5 "$ERR_FILE"
+      else
+        echo "  cat openclaw-gw-$JOB_ID.err"
+      fi
+      exit 1
+    fi
+
     # Wait until the banner is fully written (look for the separator line)
     if grep -q "──────────────────────────────" "$OUT_FILE" 2>/dev/null; then
       echo " running!"
