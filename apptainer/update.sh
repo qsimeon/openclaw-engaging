@@ -76,72 +76,16 @@ echo "$BEHIND new commit(s) available from upstream/$UPSTREAM_BRANCH."
 echo ""
 echo "Merging upstream/$UPSTREAM_BRANCH..."
 
-# Fork-only files that we always keep our version of
-FORK_FILES=".gitignore CLAUDE.local.md"
-
 if ! git merge "upstream/$UPSTREAM_BRANCH" --no-edit; then
   echo ""
-  echo "Merge conflict detected — attempting auto-resolution..."
-
-  # Check which files have conflicts
-  CONFLICTED=$(git diff --name-only --diff-filter=U)
-  UNRESOLVABLE=""
-
-  for f in $CONFLICTED; do
-    case "$f" in
-      .gitignore)
-        # .gitignore: take upstream version, then re-append our fork-specific block
-        echo "  Resolving $f: take upstream + re-append fork lines"
-        git show "upstream/$UPSTREAM_BRANCH:$f" > "$f"
-
-        # Append our fork-specific entries
-        cat >> "$f" << 'FORK_GITIGNORE'
-
-# ── Fork-specific (openclaw-engaging) ──────────────────────
-
-# Project status (local deepscan tracking)
-STATUS.md
-
-# Apptainer container images (1.5+ GB each)
-apptainer/*.sif
-
-# SLURM job logs
-openclaw-*.out
-openclaw-*.err
-openclaw-gw-*.out
-openclaw-gw-*.err
-FORK_GITIGNORE
-        git add "$f"
-        ;;
-      apptainer/*|docs/engaging-apptainer-guide.md|CLAUDE.local.md)
-        # Fork-only files: keep ours
-        echo "  Resolving $f: keep fork version"
-        git checkout --ours "$f"
-        git add "$f"
-        ;;
-      *)
-        # Upstream-only files: take theirs
-        echo "  Resolving $f: take upstream version"
-        git checkout --theirs "$f" 2>/dev/null && git add "$f" 2>/dev/null || UNRESOLVABLE="$UNRESOLVABLE $f"
-        ;;
-    esac
-  done
-
-  if [ -n "$UNRESOLVABLE" ]; then
-    echo ""
-    echo "Could not auto-resolve:$UNRESOLVABLE"
-    echo "Fix these manually, then run: git add <file> && git commit"
-    exit 1
-  fi
-
-  # Complete the merge
-  git commit --no-edit
-  echo ""
-  echo "Merge conflicts auto-resolved."
-else
-  echo ""
-  echo "Merge successful (no conflicts)."
+  echo "Merge conflict detected. Aborting merge."
+  echo "Resolve conflicts manually, then rebuild the container."
+  git merge --abort 2>/dev/null || true
+  exit 1
 fi
+
+echo ""
+echo "Merge successful."
 
 # --- Rebuild container ---
 echo ""
