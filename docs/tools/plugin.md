@@ -90,6 +90,52 @@ Notes:
 - Returns PCM audio buffer + sample rate. Plugins must resample/encode for providers.
 - Edge TTS is not supported for telephony.
 
+For STT/transcription, plugins can call:
+
+```ts
+const { text } = await api.runtime.stt.transcribeAudioFile({
+  filePath: "/tmp/inbound-audio.ogg",
+  cfg: api.config,
+  // Optional when MIME cannot be inferred reliably:
+  mime: "audio/ogg",
+});
+```
+
+Notes:
+
+- Uses core media-understanding audio configuration (`tools.media.audio`) and provider fallback order.
+- Returns `{ text: undefined }` when no transcription output is produced (for example skipped/unsupported input).
+
+## Plugin SDK import paths
+
+Use SDK subpaths instead of the monolithic `openclaw/plugin-sdk` import when
+authoring plugins:
+
+- `openclaw/plugin-sdk/core` for generic plugin APIs, provider auth types, and shared helpers.
+- `openclaw/plugin-sdk/compat` for bundled/internal plugin code that needs broader shared runtime helpers than `core`.
+- `openclaw/plugin-sdk/telegram` for Telegram channel plugins.
+- `openclaw/plugin-sdk/discord` for Discord channel plugins.
+- `openclaw/plugin-sdk/slack` for Slack channel plugins.
+- `openclaw/plugin-sdk/signal` for Signal channel plugins.
+- `openclaw/plugin-sdk/imessage` for iMessage channel plugins.
+- `openclaw/plugin-sdk/whatsapp` for WhatsApp channel plugins.
+- `openclaw/plugin-sdk/line` for LINE channel plugins.
+
+Compatibility note:
+
+- `openclaw/plugin-sdk` remains supported for existing external plugins.
+- New and migrated bundled plugins should use channel subpaths and `core`; use
+  `compat` only when broader shared helpers are required.
+
+Performance note:
+
+- Plugin discovery and manifest metadata use short in-process caches to reduce
+  bursty startup/reload work.
+- Set `OPENCLAW_DISABLE_PLUGIN_DISCOVERY_CACHE=1` or
+  `OPENCLAW_DISABLE_PLUGIN_MANIFEST_CACHE=1` to disable these caches.
+- Tune cache windows with `OPENCLAW_PLUGIN_DISCOVERY_CACHE_MS` and
+  `OPENCLAW_PLUGIN_MANIFEST_CACHE_MS`.
+
 ## Discovery & precedence
 
 OpenClaw scans, in order:
@@ -451,6 +497,29 @@ Notes:
 - `meta.aliases` adds alternate ids for normalization and CLI inputs.
 - `meta.preferOver` lists channel ids to skip auto-enable when both are configured.
 - `meta.detailLabel` and `meta.systemImage` let UIs show richer channel labels/icons.
+
+### Channel onboarding hooks
+
+Channel plugins can define optional onboarding hooks on `plugin.onboarding`:
+
+- `configure(ctx)` is the baseline setup flow.
+- `configureInteractive(ctx)` can fully own interactive setup for both configured and unconfigured states.
+- `configureWhenConfigured(ctx)` can override behavior only for already configured channels.
+
+Hook precedence in the wizard:
+
+1. `configureInteractive` (if present)
+2. `configureWhenConfigured` (only when channel status is already configured)
+3. fallback to `configure`
+
+Context details:
+
+- `configureInteractive` and `configureWhenConfigured` receive:
+  - `configured` (`true` or `false`)
+  - `label` (user-facing channel name used by prompts)
+  - plus the shared config/runtime/prompter/options fields
+- Returning `"skip"` leaves selection and account tracking unchanged.
+- Returning `{ cfg, accountId? }` applies config updates and records account selection.
 
 ### Write a new messaging channel (step‑by‑step)
 
