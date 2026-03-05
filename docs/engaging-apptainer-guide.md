@@ -995,13 +995,13 @@ Home directories on Engaging have quotas (~195 GB). The `~/.openclaw/`
 directory stores sessions, memory, and logs — it starts small but grows
 with use. Move it early to avoid quota issues.
 
-**Option A: Scratch (default — available to everyone)**
+**Option A: Scratch (default — every user has `~/orcd/scratch`)**
 
 ```bash
-mkdir -p /orcd/scratch/$USER/openclaw
-cp -a ~/.openclaw/. /orcd/scratch/$USER/openclaw/
+mkdir -p ~/orcd/scratch/openclaw
+cp -a ~/.openclaw/. ~/orcd/scratch/openclaw/
 rm -rf ~/.openclaw
-ln -s /orcd/scratch/$USER/openclaw ~/.openclaw
+ln -s ~/orcd/scratch/openclaw ~/.openclaw
 ```
 
 > **Note:** Scratch may be purged after ~90 days of inactivity. If using
@@ -1027,9 +1027,8 @@ the correct group storage path.
 All provided scripts (`openclaw-engaging.sh`, `slurm-gateway.sh`,
 `slurm-openclaw.sh`, `setup.sh`) automatically detect the symlink and
 bind-mount the target directory into the container. If you run manual
-`apptainer exec` commands, add `-B /orcd/scratch/$USER` (or
-`-B /orcd/data/<pi-group>`) so the symlink target is accessible inside
-the container.
+`apptainer exec` commands, you may need to add `-B` for the symlink
+target (e.g., `-B /orcd/scratch/orcd/002`).
 
 ---
 

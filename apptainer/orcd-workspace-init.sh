@@ -45,13 +45,15 @@ write_tools() {
 
 | Path | Type | Notes |
 |------|------|-------|
-| `~/` (`/home/qsimeon`) | Home | 195 GB quota, NFS-shared across nodes |
+| `~/` | Home | 195 GB quota, NFS-shared across nodes |
+| `~/orcd/scratch` | Scratch | Large, shared, NOT backed up, auto-purged after ~90 days |
+| `~/orcd/pool` | Pool | PI-allocated persistent storage |
+| `~/orcd/datasets` | Datasets | Shared read-only datasets |
 | `/orcd/data/edboyden/002/qsimeon/` | PI storage | ~1.1 PB pool, persistent, for large datasets |
-| `/orcd/scratch/bcs/002/` | Scratch | ~45 TB shared, NOT backed up, auto-purged |
-| `~/.openclaw` | Symlink | Points to `/orcd/data/edboyden/002/qsimeon/openclaw` |
 
-- **Default working data:** `/orcd/data/edboyden/002/qsimeon/`
-- **Temp/intermediate results:** `/orcd/scratch/bcs/002/`
+- **Default scratch:** `~/orcd/scratch` (symlink to `/orcd/scratch/orcd/002/$USER`)
+- **PI working data:** `/orcd/data/edboyden/002/qsimeon/`
+- `~/.openclaw` is symlinked to external storage to avoid home quota issues
 
 ## SLURM
 
@@ -162,7 +164,10 @@ SOUL_EOF
 
 # ── Apply TOOLS.md ────────────────────────────────────────────────────
 
-if [ -f "$WORKSPACE/TOOLS.md" ]; then
+if [ "${FORCE:-}" = "1" ]; then
+  write_tools
+  echo "TOOLS.md: force-overwritten with ORCD cluster info"
+elif [ -f "$WORKSPACE/TOOLS.md" ]; then
   if has_orcd_content "$WORKSPACE/TOOLS.md"; then
     echo "TOOLS.md: already has ORCD content, skipping"
   elif is_default_template "$WORKSPACE/TOOLS.md"; then
@@ -171,10 +176,6 @@ if [ -f "$WORKSPACE/TOOLS.md" ]; then
   else
     echo "TOOLS.md: contains custom content — not overwriting"
     echo "  Run with FORCE=1 to overwrite, or edit manually"
-    if [ "${FORCE:-}" = "1" ]; then
-      write_tools
-      echo "TOOLS.md: force-overwritten with ORCD cluster info"
-    fi
   fi
 else
   write_tools
