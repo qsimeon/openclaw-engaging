@@ -41,10 +41,19 @@ ENV_FLAGS=""
 [ -n "${ANTHROPIC_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
 [ -n "${OPENAI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENAI_API_KEY=$OPENAI_API_KEY"
 [ -n "${OPENROUTER_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
+[ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
+
+# If ~/.openclaw is a symlink (e.g. to /orcd/data/...), bind-mount the target
+BIND_FLAGS=""
+if [ -L "$HOME/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$HOME/.openclaw")"
+  BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
+fi
 
 PORT="${OPENCLAW_GATEWAY_PORT:-18790}"
 NODE=$(hostname)
 LOGIN_NODE="${OPENCLAW_LOGIN_NODE:-orcd-login.mit.edu}"
+AGENT_NAME="${OPENCLAW_AGENT:-}"
 
 # --- Extract gateway auth token + ensure allowedOrigins ---
 CONFIG_FILE="$HOME/.openclaw/openclaw.json"
@@ -75,9 +84,14 @@ if 'allowedOrigins' not in cui:
 fi
 
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  OpenClaw Gateway                                          ║"
+if [ -n "$AGENT_NAME" ]; then
+  printf "║  OpenClaw Gateway — %-39s ║\n" "$AGENT_NAME"
+else
+  echo "║  OpenClaw Gateway                                          ║"
+fi
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
+[ -n "$AGENT_NAME" ] && echo "  Agent:   $AGENT_NAME"
 echo "  Node:    $NODE"
 echo "  Port:    $PORT"
 echo "  Job ID:  $SLURM_JOB_ID"
@@ -119,6 +133,7 @@ echo ""
 # --allow-unconfigured: start even if no channels are fully configured yet.
 # shellcheck disable=SC2086
 apptainer exec \
+  $BIND_FLAGS \
   $ENV_FLAGS \
   "$SIF_FILE" \
   openclaw gateway \

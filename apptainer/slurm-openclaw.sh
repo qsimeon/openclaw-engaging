@@ -58,6 +58,14 @@ ENV_FLAGS=""
 [ -n "${ANTHROPIC_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY"
 [ -n "${OPENAI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENAI_API_KEY=$OPENAI_API_KEY"
 [ -n "${OPENROUTER_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
+[ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
+
+# If ~/.openclaw is a symlink (e.g. to /orcd/data/...), bind-mount the target
+BIND_FLAGS=""
+if [ -L "$HOME/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$HOME/.openclaw")"
+  BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
+fi
 
 # --- Nvidia GPU support (if allocated) ---
 NV_FLAG=""
@@ -92,6 +100,7 @@ echo ""
 # --- Run OpenClaw ---
 # shellcheck disable=SC2086
 apptainer exec \
+  $BIND_FLAGS \
   $NV_FLAG \
   $ENV_FLAGS \
   "$SIF_FILE" \

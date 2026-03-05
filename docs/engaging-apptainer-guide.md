@@ -539,7 +539,12 @@ Or edit `slurm-openclaw.sh` to include `-B /pool/lab-data` in the
 
 > **This is the key advantage over DigitalOcean:** your research data is
 > already on the cluster filesystem. Bind it into the container and the
-> agent has direct access — no uploading, no copying, no data movement.
+> agent has direct access — no uploading, no copying to a separate server.
+>
+> **Important:** While your raw data files stay on the cluster, the agent
+> sends prompts and file excerpts to cloud LLM APIs (Anthropic, OpenAI,
+> etc.) over HTTPS for processing. Do not point the agent at sensitive or
+> restricted data without understanding this.
 
 ---
 
@@ -794,9 +799,244 @@ personal config in `~/.openclaw/`. One container, many users, isolated state.
 
 ---
 
+## Running Multiple Agents in Parallel
+
+You can launch multiple independent gateway instances simultaneously — useful
+for class demos, parallel experiments, or giving each team member their own
+dashboard.
+
+### Architecture
+
+Each instance is a fully independent stack:
+
+```
+┌─ Your laptop ─────────────────────────────────────────────┐
+│                                                           │
+│  Browser tab 1 → http://localhost:18790/?token=...        │
+│  Browser tab 2 → http://localhost:18791/?token=...        │
+│  Browser tab 3 → http://localhost:18792/?token=...        │
+│           │              │              │                  │
+│           └──── SSH tunnel (one or multiple) ─────┐       │
+└───────────────────────────────────────────────────┼───────┘
+                                                    │
+┌─ Engaging cluster ────────────────────────────────┼───────┐
+│                                                   │       │
+│  ┌──────────────┐  ┌──────────────┐  ┌────────────┴─┐    │
+│  │ SLURM job 1  │  │ SLURM job 2  │  │ SLURM job 3  │    │
+│  │ port 18790   │  │ port 18791   │  │ port 18792   │    │
+│  │ agent-1      │  │ agent-2      │  │ agent-3      │    │
+│  └──────────────┘  └──────────────┘  └──────────────┘    │
+│                                                           │
+│  Shared: ~/.openclaw/ config, NFS home directory          │
+└───────────────────────────────────────────────────────────┘
+```
+
+### Quick start
+
+```bash
+# Launch 3 independent instances
+./apptainer/start-multi.sh 3
+
+# Or with custom names (e.g., for a class)
+./apptainer/start-multi.sh 3 --prefix demo
+# → demo-1 on :18790, demo-2 on :18791, demo-3 on :18792
+```
+
+The script prints a summary table with job IDs, nodes, ports, SSH tunnel
+commands, and dashboard URLs — designed for easy copy-paste.
+
+### SSH tunnels
+
+The output includes a single combined tunnel command for all instances:
+
+```bash
+autossh -M 0 -f -N -L 18790:node1:18790 -L 18791:node2:18791 user@orcd-login.mit.edu
+```
+
+Or you can open per-instance tunnels separately.
+
+### Cleanup
+
+```bash
+# Stop all instances (job IDs shown in the summary)
+scancel JOB_ID_1 JOB_ID_2 JOB_ID_3
+
+# Or cancel all your gateway jobs at once
+scancel -u $USER -n openclaw-gw-1
+scancel -u $USER -n openclaw-gw-2
+scancel -u $USER -n openclaw-gw-3
+```
+
+### Alternative: shared gateway with multiple agents
+
+For advanced users, you can also run a single gateway that routes to multiple
+named agents:
+
+```bash
+# Create named agents
+openclaw agents add project-a
+openclaw agents add project-b
+
+# One gateway serves all agents (switch in the dashboard)
+./apptainer/start-gateway.sh
+```
+
+This uses fewer SLURM resources but all agents share one gateway process.
+
+---
+
+## Agent Identity & Cluster Knowledge
+
+OpenClaw agents load **workspace files** (`TOOLS.md`, `SOUL.md`, `IDENTITY.md`)
+at the start of every session. These files are the agent's memory and identity —
+the equivalent of a DigitalOcean droplet's MOTD that tells the agent about its
+environment.
+
+### What the init script does
+
+`setup.sh` automatically runs `orcd-workspace-init.sh` after onboarding. This
+populates the workspace with cluster-specific context:
+
+| File | Content |
+|------|---------|
+| `TOOLS.md` | Storage paths, SLURM partitions, module system, OpenClaw commands, ORCD doc links |
+| `SOUL.md` | Appends "HPC co-scientist" framing — the agent knows it's on Engaging in an Apptainer container |
+| `IDENTITY.md` | Left as-is (already customized during first agent session) |
+
+### Running it manually
+
+```bash
+# Standalone (idempotent — safe to rerun)
+./apptainer/orcd-workspace-init.sh
+
+# Force overwrite existing TOOLS.md
+FORCE=1 ./apptainer/orcd-workspace-init.sh
+```
+
+### Customizing
+
+Edit the workspace files directly — they live at `~/.openclaw/workspace/`:
+
+```bash
+# Add your own tools/paths
+vim ~/.openclaw/workspace/TOOLS.md
+
+# Change the agent's personality
+vim ~/.openclaw/workspace/SOUL.md
+```
+
+The init script won't overwrite files that contain custom content (unless you
+use `FORCE=1`). It only replaces default templates.
+
+### Verifying
+
+Ask the agent about its environment:
+
+```bash
+openclaw agent --local --agent main -m "What cluster am I on?"
+```
+
+It should reference MIT Engaging, SLURM, ORCD storage paths, etc.
+
+---
+
+## Important Notes
+
+### Responsible use and data privacy
+
+> **Use only low-risk data.** The agent sends prompts and file excerpts to
+> cloud LLM APIs (Anthropic, OpenAI, etc.) over HTTPS. Your raw data files
+> stay on the cluster, but any content the agent reads will be transmitted
+> to your chosen LLM provider. Do not point the agent at restricted,
+> sensitive, or export-controlled datasets. See
+> [MIT IS&T data classification](https://ist.mit.edu/security/data-classification)
+> for guidance.
+
+- Only grant the agent access to directories it needs (use explicit
+  `-B /path` bind mounts rather than mounting everything)
+- Review third-party skills before enabling them — skills can execute
+  arbitrary code with your permissions
+- Monitor your API usage; some providers have suspended accounts for
+  very high automated usage through agent platforms
+
+### Sandbox is disabled — by design
+
+The setup script sets `agents.defaults.sandbox.mode: "off"`. This is
+intentional: the agent needs to run commands and edit files to be useful.
+On a regular machine, OpenClaw uses Docker containers as a sandbox. On
+Engaging, Docker isn't available — **Apptainer is the security boundary
+instead**.
+
+By default, Apptainer auto-mounts your home directory and current working
+directory into the container. The container filesystem itself is read-only.
+This gives you a practical level of isolation: the agent can access your
+files but cannot modify the host OS, install system packages, or affect
+other users.
+
+**For stricter isolation**, you can use `--containall` with explicit bind
+mounts, which prevents auto-mounting and gives you full control over what
+the agent can see:
+
+```bash
+apptainer exec --containall \
+  -B ~/.openclaw:/home/$USER/.openclaw \
+  -B ~/my-project:/home/$USER/my-project \
+  apptainer/openclaw.sif openclaw agent --local --agent main
+```
+
+This is useful if you want the agent to only access specific directories.
+The default scripts do not use `--containall` because it requires
+manually binding every path the agent needs, which is less convenient
+for general use.
+
+### Moving `.openclaw` off your home directory (recommended)
+
+Home directories on Engaging have quotas (~195 GB). The `~/.openclaw/`
+directory stores sessions, memory, and logs — it starts small but grows
+with use. Move it early to avoid quota issues.
+
+**Option A: Scratch (default — available to everyone)**
+
+```bash
+mkdir -p /orcd/scratch/$USER/openclaw
+cp -a ~/.openclaw/. /orcd/scratch/$USER/openclaw/
+rm -rf ~/.openclaw
+ln -s /orcd/scratch/$USER/openclaw ~/.openclaw
+```
+
+> **Note:** Scratch may be purged after ~90 days of inactivity. If using
+> scratch, back up `~/.openclaw/` periodically (especially
+> `openclaw.json` and `credentials/`).
+
+**Option B: PI/group storage (persistent, if available)**
+
+If your PI has allocated group storage, use that instead — it's not
+auto-purged:
+
+```bash
+mkdir -p /orcd/data/<pi-group>/$USER/openclaw
+cp -a ~/.openclaw/. /orcd/data/<pi-group>/$USER/openclaw/
+rm -rf ~/.openclaw
+ln -s /orcd/data/<pi-group>/$USER/openclaw ~/.openclaw
+```
+
+Replace `/orcd/data/<pi-group>/` with your actual path (e.g.,
+`/orcd/data/edboyden/002/`). Check with your PI or run `df -h` to find
+the correct group storage path.
+
+All provided scripts (`openclaw-engaging.sh`, `slurm-gateway.sh`,
+`slurm-openclaw.sh`, `setup.sh`) automatically detect the symlink and
+bind-mount the target directory into the container. If you run manual
+`apptainer exec` commands, add `-B /orcd/scratch/$USER` (or
+`-B /orcd/data/<pi-group>`) so the symlink target is accessible inside
+the container.
+
+---
+
 ## Next Steps
 
 - **Multiple agents**: `openclaw agents add <name>` — isolate per-project
+- **Parallel instances**: `./apptainer/start-multi.sh N` — independent dashboards
 - **Tools & skills**: Web search, file I/O, browser automation, custom skills
 - **Memory**: Persistent knowledge with SQLite + vector search
 - **Channels**: Telegram, Discord, Slack (needs a long-running gateway job)

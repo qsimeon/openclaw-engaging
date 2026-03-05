@@ -39,5 +39,14 @@ ENV_FLAGS=""
 [ -n "${OPENROUTER_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
 [ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
 
+# If ~/.openclaw is a symlink (e.g. to /orcd/data/...), bind-mount the
+# target directory so it's accessible inside the container.
+BIND_FLAGS=""
+if [ -L "$HOME/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$HOME/.openclaw")"
+  SYMLINK_PARENT="$(dirname "$SYMLINK_TARGET")"
+  BIND_FLAGS="-B $SYMLINK_PARENT"
+fi
+
 # shellcheck disable=SC2086
-exec apptainer exec $ENV_FLAGS "$SIF_FILE" openclaw "$@"
+exec apptainer exec $BIND_FLAGS $ENV_FLAGS "$SIF_FILE" openclaw "$@"

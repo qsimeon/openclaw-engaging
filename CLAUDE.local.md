@@ -11,8 +11,10 @@ The `apptainer/` directory contains recipes for running OpenClaw on the MIT Enga
 - `slurm-openclaw.sh` — SLURM batch job template for agent
 - `slurm-gateway.sh` — SLURM job for the gateway server (dashboard + channels)
 - `start-gateway.sh` — 1-click gateway launcher (submits job, waits, prints connection info)
+- `start-multi.sh` — Multi-agent launcher (N independent gateway instances on consecutive ports)
 - `update.sh` — Automated upstream sync: fetch + merge + rebuild (`--check` for check-only)
 - `openclaw-engaging.sh` — Convenience wrapper (API key passthrough, module loading)
+- `orcd-workspace-init.sh` — Populates `~/.openclaw/workspace/` with ORCD/Engaging cluster context (TOOLS.md, SOUL.md). Idempotent; called by `setup.sh` after onboarding.
 
 Build: `module load apptainer/1.4.2 && srun --mem=8G --time=01:00:00 --cpus-per-task=2 apptainer build apptainer/openclaw.sif apptainer/openclaw.def`
 

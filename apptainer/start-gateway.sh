@@ -22,20 +22,34 @@ if [ ! -f "$SLURM_SCRIPT" ]; then
 fi
 
 # --- Check for existing gateway job ---
+# Check by job name. When OPENCLAW_GATEWAY_PORT is set, also verify the port
+# matches to avoid false positives from multi-instance setups.
+TARGET_PORT="${OPENCLAW_GATEWAY_PORT:-18790}"
 EXISTING=$(squeue -u "$USER" -n openclaw-gw -h -o "%i %N %T" 2>/dev/null | head -1)
 if [ -n "$EXISTING" ]; then
   JOB_ID=$(echo "$EXISTING" | awk '{print $1}')
   NODE=$(echo "$EXISTING" | awk '{print $2}')
   STATE=$(echo "$EXISTING" | awk '{print $3}')
-  echo "Gateway already running: job $JOB_ID on $NODE ($STATE)"
-  echo ""
+
+  # If a specific port was requested, check that the existing job uses it
+  SHOW_EXISTING=true
   OUT_FILE="$REPO_DIR/openclaw-gw-$JOB_ID.out"
-  if [ -f "$OUT_FILE" ]; then
-    cat "$OUT_FILE"
-  else
-    echo "Output file not found yet. Try: cat openclaw-gw-$JOB_ID.out"
+  if [ "$TARGET_PORT" != "18790" ] && [ -f "$OUT_FILE" ]; then
+    if ! grep -q "Port:.*$TARGET_PORT" "$OUT_FILE" 2>/dev/null; then
+      SHOW_EXISTING=false  # different port — not our job
+    fi
   fi
-  exit 0
+
+  if [ "$SHOW_EXISTING" = true ]; then
+    echo "Gateway already running: job $JOB_ID on $NODE ($STATE)"
+    echo ""
+    if [ -f "$OUT_FILE" ]; then
+      cat "$OUT_FILE"
+    else
+      echo "Output file not found yet. Try: cat openclaw-gw-$JOB_ID.out"
+    fi
+    exit 0
+  fi
 fi
 
 # --- Check for upstream updates ---

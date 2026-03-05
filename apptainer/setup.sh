@@ -128,9 +128,23 @@ if [ ! -f "$CONFIG_FILE" ]; then
 }
 EOF
   echo "Created HPC-friendly config at $CONFIG_FILE"
-  echo "  • Sandbox: off (no Docker-in-Docker on HPC)"
+  echo "  • Sandbox: off — the agent needs direct command access to be useful;"
+  echo "    the Apptainer container is the security boundary instead of Docker"
   echo "  • Session idle timeout: 1 year (effectively never — survives job preemption)"
   echo "  • Gateway: port 18790, LAN bind, device auth disabled (SSH tunnel)"
+  echo ""
+  echo "  Tip: Move ~/.openclaw off your home directory to avoid quota issues."
+  echo "  Default (scratch — available to everyone):"
+  echo "    mkdir -p /orcd/scratch/\${USER}/openclaw"
+  echo "    cp -a ~/.openclaw/. /orcd/scratch/\${USER}/openclaw/"
+  echo "    rm -rf ~/.openclaw"
+  echo "    ln -s /orcd/scratch/\${USER}/openclaw ~/.openclaw"
+  echo ""
+  echo "  Or use PI/group storage if available (persistent, not auto-purged):"
+  echo "    ln -s /orcd/data/<pi-group>/\$USER/openclaw ~/.openclaw"
+  echo ""
+  echo "  Note: scratch may be purged after ~90 days of inactivity."
+  echo "  If using scratch, back up ~/.openclaw/ periodically."
 fi
 
 # ── Run the OpenClaw onboarding wizard ──────────────────────────────
@@ -149,8 +163,19 @@ echo "║  It persists across SLURM jobs.                            ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
-apptainer exec "$SIF_FILE" \
+# If ~/.openclaw is a symlink (e.g. to /orcd/data/...), bind-mount the target
+BIND_FLAGS=""
+if [ -L "$HOME/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$HOME/.openclaw")"
+  BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
+fi
+
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" \
   openclaw onboard --skip-daemon
+
+# ── Populate workspace with ORCD cluster context ─────────────────────
+"$SCRIPT_DIR/orcd-workspace-init.sh" 2>/dev/null || true
 
 # ── Install shell alias ────────────────────────────────────────────
 # Create an 'openclaw' alias so users can type 'openclaw ...' instead
