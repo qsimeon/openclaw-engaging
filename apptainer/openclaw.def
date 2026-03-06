@@ -5,6 +5,11 @@ From: ghcr.io/openclaw/openclaw:main
   # ── CLI wrapper ───────────────────────────────────────────────────
   # The app lives at /app (Docker WORKDIR), but Apptainer defaults to
   # the host CWD, so we create a wrapper that cds into /app first.
+  # NOTE: The upstream Docker image creates a symlink
+  #   /usr/local/bin/openclaw → /app/openclaw.mjs
+  # We must remove it first, otherwise `cat >` follows the symlink
+  # and overwrites the real JS entrypoint with our shell wrapper.
+  rm -f /usr/local/bin/openclaw
   cat > /usr/local/bin/openclaw << 'WRAPPER'
 #!/bin/sh
 cd /app
