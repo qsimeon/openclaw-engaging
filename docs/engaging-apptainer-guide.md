@@ -149,7 +149,7 @@ Or split it if you already built the container in Step 1:
 
 ```bash
 # Onboard only (interactive wizard, container must already exist)
-srun --pty --mem=1G --time=00:30:00 ./apptainer/setup.sh --onboard-only
+srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
 ```
 
 The setup script automatically configures HPC-specific settings before
@@ -746,6 +746,30 @@ openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
 Then restart the gateway: `scancel <jobid> && cd ~/openclaw-engaging && sbatch apptainer/slurm-gateway.sh`
 
 The `setup.sh` script pre-configures this automatically.
+
+### Token not auto-filling from URL
+
+The dashboard may not auto-fill the token from the URL query parameter. If you
+see `OPENCLAW_GATEWAY_TOKEN (optional)` in the token field after clicking the
+tokenized URL, copy the token value from the URL and paste it manually.
+
+The token is the string after `?token=` in the URL, e.g.:
+```
+http://localhost:18790/?token=abc123...
+                              ^^^^^^^^^ copy this part
+```
+
+### ENOTDIR error after moving `.openclaw`
+
+If you moved `~/.openclaw` to external storage while a gateway was running,
+the gateway cached the old path. Cancel and restart:
+
+```bash
+scancel $(squeue --me -h -o "%i" -n openclaw-gw)
+cd ~/openclaw-engaging && ./apptainer/start-gateway.sh
+```
+
+The scripts auto-detect the symlink on startup and bind-mount the target.
 
 ### SSH tunnel "Connection refused"
 

@@ -32,12 +32,19 @@ is_default_template() {
 # ── TOOLS.md ──────────────────────────────────────────────────────────
 
 write_tools() {
-  cat > "$WORKSPACE/TOOLS.md" << 'TOOLS_EOF'
+  # Auto-detect PI/group storage by checking for symlinks in ~/data or /orcd/data
+  PI_STORAGE_LINE=""
+  if [ -L "$HOME/data" ]; then
+    PI_PATH="$(readlink -f "$HOME/data")"
+    PI_STORAGE_LINE="| \`$PI_PATH/\` | PI storage | Group-allocated persistent storage |"
+  fi
+
+  cat > "$WORKSPACE/TOOLS.md" << TOOLS_EOF
 # TOOLS.md - MIT Engaging HPC Environment
 
 ## Cluster Access
 
-- **Login node:** `orcd-login.mit.edu` (SSH)
+- **Login node:** \`orcd-login.mit.edu\` (SSH)
 - **Docs:** https://orcd-docs.mit.edu/
 - **Support:** orcd-help@mit.edu
 
@@ -45,15 +52,15 @@ write_tools() {
 
 | Path | Type | Notes |
 |------|------|-------|
-| `~/` | Home | 195 GB quota, NFS-shared across nodes |
-| `~/orcd/scratch` | Scratch | Large, shared, NOT backed up, auto-purged after ~90 days |
-| `~/orcd/pool` | Pool | PI-allocated persistent storage |
-| `~/orcd/datasets` | Datasets | Shared read-only datasets |
-| `/orcd/data/edboyden/002/qsimeon/` | PI storage | ~1.1 PB pool, persistent, for large datasets |
-
-- **Default scratch:** `~/orcd/scratch` (symlink to `/orcd/scratch/orcd/002/$USER`)
-- **PI working data:** `/orcd/data/edboyden/002/qsimeon/`
-- `~/.openclaw` is symlinked to external storage to avoid home quota issues
+| \`~/\` | Home | ~195 GB quota, NFS-shared across nodes |
+| \`~/orcd/scratch\` | Scratch | Large, NOT backed up, auto-purged after ~90 days |
+| \`~/orcd/pool\` | Pool | PI-allocated persistent storage (if available) |
+| \`~/orcd/datasets\` | Datasets | Shared read-only datasets |
+${PI_STORAGE_LINE:+$PI_STORAGE_LINE
+}
+- **Default scratch:** \`~/orcd/scratch\` (symlink to \`/orcd/scratch/orcd/002/\$USER\`)
+- Check with your PI or run \`df -h\` to find group storage paths
+- \`~/.openclaw\` may be symlinked to scratch/external storage to avoid home quota issues
 
 ## SLURM
 
@@ -61,61 +68,61 @@ write_tools() {
 
 | Partition | Use case | GPU |
 |-----------|----------|-----|
-| `sched_mit_hill` | Default CPU jobs | No |
-| `mit_normal` | General CPU | No |
-| `mit_normal_gpu` | GPU workloads | L40S, H100 |
+| \`sched_mit_hill\` | Default CPU jobs | No |
+| \`mit_normal\` | General CPU | No |
+| \`mit_normal_gpu\` | GPU workloads | L40S, H100 |
 
 ### Common commands
 
-```bash
+\`\`\`bash
 srun --pty --mem=4G --time=02:00:00 bash          # Interactive session
 sbatch script.sh                                    # Submit batch job
-squeue -u $USER                                     # Check your jobs
+squeue -u \$USER                                     # Check your jobs
 scancel <jobid>                                     # Cancel a job
 sinfo -p <partition> -o "%l"                        # Max wall time
-```
+\`\`\`
 
 ### GPU jobs
 
-```bash
+\`\`\`bash
 srun --pty --mem=16G --time=02:00:00 --gres=gpu:1 -p mit_normal_gpu bash
-```
+\`\`\`
 
 ## Module System
 
-```bash
+\`\`\`bash
 module avail                    # List all modules
 module load apptainer/1.4.2    # Apptainer (container runtime)
 module load python/3.11         # Python
 module load cuda/12             # CUDA toolkit
-```
+\`\`\`
 
 ## OpenClaw Commands
 
-All commands go through the `openclaw` alias (set up by `setup.sh`):
+All commands go through the \`openclaw\` alias (set up by \`setup.sh\`):
 
-```bash
+\`\`\`bash
 openclaw agent --local --agent main -m "Hello!"     # One-shot query
 openclaw agent --local --agent main                  # Interactive session
 openclaw configure                                   # Reconfigure
 openclaw doctor                                      # Health check
 openclaw sessions                                    # List sessions
-```
+\`\`\`
 
 ### Gateway (browser dashboard)
 
-```bash
+\`\`\`bash
 cd ~/openclaw-engaging
 ./apptainer/start-gateway.sh                         # Launch gateway job
 ./apptainer/start-multi.sh N                         # N parallel instances
-```
+\`\`\`
 
 ### Batch jobs
 
-```bash
+\`\`\`bash
 cd ~/openclaw-engaging
 OPENCLAW_PROMPT="Your task here" sbatch apptainer/slurm-openclaw.sh
-```
+\`\`\`
 
 ## Data Privacy
 

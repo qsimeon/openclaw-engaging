@@ -14,7 +14,7 @@
 #   srun --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh --build-only
 #
 #   # Step 2: Onboard (interactive, needs --pty for the wizard)
-#   srun --pty --mem=1G --time=00:30:00 ./apptainer/setup.sh --onboard-only
+#   srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
 #
 set -euo pipefail
 
@@ -82,7 +82,7 @@ if [ "$ONBOARD_ONLY" = false ]; then
   if [ "$BUILD_ONLY" = true ]; then
     echo ""
     echo "Container built. To continue setup, run:"
-    echo "  srun --pty --mem=1G --time=00:30:00 $0 --onboard-only"
+    echo "  srun --pty --mem=4G --time=00:30:00 $0 --onboard-only"
     exit 0
   fi
 fi
@@ -94,57 +94,8 @@ if [ ! -f "$SIF_FILE" ]; then
   exit 1
 fi
 
-# ── Set HPC-friendly session config before onboarding ────────────────
-# On HPC, sessions should never auto-reset (jobs get preempted).
-# This sets up the base config so onboarding layers on top of it.
-CONFIG_DIR="$HOME/.openclaw"
-CONFIG_FILE="$CONFIG_DIR/openclaw.json"
-mkdir -p "$CONFIG_DIR"
-
-if [ ! -f "$CONFIG_FILE" ]; then
-  cat > "$CONFIG_FILE" << 'EOF'
-{
-  "agents": {
-    "defaults": {
-      "sandbox": {
-        "mode": "off"
-      }
-    }
-  },
-  "session": {
-    "reset": {
-      "mode": "idle",
-      "idleMinutes": 525600
-    }
-  },
-  "gateway": {
-    "port": 18790,
-    "bind": "lan",
-    "controlUi": {
-      "dangerouslyDisableDeviceAuth": true,
-      "allowedOrigins": ["http://localhost:18790"]
-    }
-  }
-}
-EOF
-  echo "Created HPC-friendly config at $CONFIG_FILE"
-  echo "  • Sandbox: off — the agent needs direct command access to be useful;"
-  echo "    the Apptainer container is the security boundary instead of Docker"
-  echo "  • Session idle timeout: 1 year (effectively never — survives job preemption)"
-  echo "  • Gateway: port 18790, LAN bind, device auth disabled (SSH tunnel)"
-  echo ""
-  echo "  Tip: Move ~/.openclaw to scratch to avoid home directory quota issues:"
-  echo "    mkdir -p ~/orcd/scratch/openclaw"
-  echo "    cp -a ~/.openclaw/. ~/orcd/scratch/openclaw/"
-  echo "    rm -rf ~/.openclaw"
-  echo "    ln -s ~/orcd/scratch/openclaw ~/.openclaw"
-  echo ""
-  echo "  Or use PI/group storage if available (persistent, not auto-purged):"
-  echo "    ln -s /orcd/data/<pi-group>/\$USER/openclaw ~/.openclaw"
-  echo ""
-  echo "  Note: scratch may be purged after ~90 days of inactivity."
-  echo "  If using scratch, back up ~/.openclaw/ periodically."
-fi
+# ── Ensure config directory exists ────────────────────────────────────
+mkdir -p "$HOME/.openclaw"
 
 # ── Run the OpenClaw onboarding wizard ──────────────────────────────
 echo ""
@@ -172,6 +123,43 @@ fi
 # shellcheck disable=SC2086
 apptainer exec $BIND_FLAGS "$SIF_FILE" \
   openclaw onboard --skip-daemon
+
+# ── Apply HPC-friendly settings AFTER onboarding ────────────────────
+# Onboarding creates/modifies openclaw.json. We layer HPC settings on
+# top so they aren't overwritten by the wizard.
+echo ""
+echo "Applying HPC-friendly settings..."
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set agents.defaults.sandbox.mode off
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set session.reset.mode idle
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set session.reset.idleMinutes 525600
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.port 18790
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.bind lan
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+# shellcheck disable=SC2086
+apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.allowedOrigins '["http://localhost:18790"]'
+
+echo ""
+echo "  • Sandbox: off (Apptainer container is the security boundary)"
+echo "  • Session idle timeout: 1 year (survives job preemption)"
+echo "  • Gateway: port 18790, LAN bind, device auth disabled (SSH tunnel)"
+echo ""
+echo "  Tip: Move ~/.openclaw to scratch to avoid home directory quota issues:"
+echo "    mkdir -p ~/orcd/scratch/openclaw"
+echo "    cp -a ~/.openclaw/. ~/orcd/scratch/openclaw/"
+echo "    rm -rf ~/.openclaw"
+echo "    ln -s ~/orcd/scratch/openclaw ~/.openclaw"
+echo ""
+echo "  Or use PI/group storage if available (persistent, not auto-purged):"
+echo "    ln -s /orcd/data/<pi-group>/\$USER/openclaw ~/.openclaw"
+echo ""
+echo "  Note: scratch may be purged after ~90 days of inactivity."
+echo "  If using scratch, back up ~/.openclaw/ periodically."
 
 # ── Populate workspace with ORCD cluster context ─────────────────────
 "$SCRIPT_DIR/orcd-workspace-init.sh" 2>/dev/null || true
