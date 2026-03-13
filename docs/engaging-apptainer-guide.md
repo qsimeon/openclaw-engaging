@@ -408,6 +408,70 @@ OPENCLAW_LOGIN_NODE=orcd-login.mit.edu sbatch apptainer/slurm-gateway.sh
 
 ---
 
+## Advanced: Environment Variables
+
+All exec scripts (`openclaw-engaging.sh`, `slurm-openclaw.sh`,
+`slurm-gateway.sh`, `setup.sh`) support these environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENCLAW_SIF` | `apptainer/openclaw.sif` | Path to container image |
+| `OPENCLAW_SLURM_BINDS` | off | Bind-mount SLURM commands into container |
+| `OPENCLAW_CONTAINALL` | off | Strict filesystem isolation |
+| `OPENCLAW_GATEWAY_PORT` | `18790` | Gateway port (gateway scripts only) |
+| `OPENCLAW_LOGIN_NODE` | `orcd-login.mit.edu` | Login node for SSH tunnel info |
+| `OPENCLAW_AGENT` | `main` | Agent name (batch/gateway scripts) |
+| `OPENCLAW_PROMPT` | greeting | Task prompt (batch script only) |
+
+> **Note:** The container's `$HOME` is always set to the repo directory
+> (where you cloned `openclaw-engaging`). See
+> [Where `.openclaw` lives](#where-openclaw-lives) for details.
+
+### SLURM access from inside the container (`OPENCLAW_SLURM_BINDS`)
+
+Enable this to let the agent submit and manage SLURM jobs from within the
+container — the agent can write batch scripts and run `sbatch` directly:
+
+```bash
+# Agent can now use sbatch, squeue, scancel, sinfo, srun, sacct
+OPENCLAW_SLURM_BINDS=1 openclaw agent --local --agent main \
+  -m "Write a SLURM batch script for my analysis and submit it"
+
+# With batch jobs
+OPENCLAW_SLURM_BINDS=1 sbatch apptainer/slurm-openclaw.sh
+```
+
+This bind-mounts the host's SLURM binaries (`/usr/bin/sbatch`, etc.),
+libraries (`/usr/lib64/slurm/`), config (`/etc/slurm/`), and munge
+authentication socket (`/run/munge/`) into the container.
+
+> **Note:** This relies on the host and container having compatible system
+> libraries. If you see `sbatch` errors about missing libraries, the host
+> SLURM version may be incompatible. As a fallback, the agent can write batch
+> scripts and you can run `sbatch` outside the container.
+
+### Strict isolation (`OPENCLAW_CONTAINALL`)
+
+For maximum filesystem isolation, set `OPENCLAW_CONTAINALL=1`. This passes
+`--containall` to Apptainer, which disables auto-mounting of home, `/tmp`,
+and the current working directory:
+
+```bash
+OPENCLAW_CONTAINALL=1 openclaw agent --local --agent main
+```
+
+The scripts automatically add `--home` and `-B /tmp` so the agent can still
+access its config and scratch space. To grant access to additional directories,
+use `APPTAINER_BIND`:
+
+```bash
+OPENCLAW_CONTAINALL=1 APPTAINER_BIND="~/my-project" \
+  openclaw agent --local --agent main \
+  -m "Analyze the data in ~/my-project/"
+```
+
+---
+
 ## Session Persistence & Resumability
 
 This is the most important difference from a DigitalOcean droplet. SLURM
@@ -417,7 +481,7 @@ OpenClaw is designed so that **nothing is lost** when this happens.
 ### Where state lives
 
 ```
-~/.openclaw/                 # All on your NFS home directory
+<repo-dir>/.openclaw/        # Inside the repo directory (gitignored)
 ├── .env                     # API key(s)
 ├── openclaw.json            # Config (set by onboarding wizard)
 └── agents/
@@ -427,7 +491,7 @@ OpenClaw is designed so that **nothing is lost** when this happens.
             └── <session-id>.jsonl  # Conversation transcript
 ```
 
-Your home directory is:
+The repo directory (and everything in it) is:
 - **Persistent** across all SLURM jobs
 - **Shared** across all Engaging nodes (NFS)
 - **Private** to your user account
@@ -985,9 +1049,21 @@ This gives you a practical level of isolation: the agent can access your
 files but cannot modify the host OS, install system packages, or affect
 other users.
 
-**For stricter isolation**, you can use `--containall` with explicit bind
-mounts, which prevents auto-mounting and gives you full control over what
-the agent can see:
+**For stricter isolation**, set `OPENCLAW_CONTAINALL=1` to enable
+`--containall` mode, which prevents auto-mounting and gives you full control
+over what the agent can see:
+
+```bash
+# All scripts support this — home and /tmp are auto-bound
+OPENCLAW_CONTAINALL=1 openclaw agent --local --agent main
+
+# Add extra directories via APPTAINER_BIND
+OPENCLAW_CONTAINALL=1 APPTAINER_BIND="~/my-project" \
+  openclaw agent --local --agent main \
+  -m "Analyze the data in ~/my-project/"
+```
+
+Or manually with `apptainer exec`:
 
 ```bash
 apptainer exec --containall \
@@ -997,50 +1073,48 @@ apptainer exec --containall \
 ```
 
 This is useful if you want the agent to only access specific directories.
-The default scripts do not use `--containall` because it requires
-manually binding every path the agent needs, which is less convenient
-for general use.
+See [Strict isolation](#strict-isolation-openclaw_containall) for details.
 
-### Moving `.openclaw` off your home directory (recommended)
+### Where `.openclaw` lives
 
-Home directories on Engaging have quotas (~195 GB). The `~/.openclaw/`
-directory stores sessions, memory, and logs — it starts small but grows
-with use. Move it early to avoid quota issues.
+All scripts set `--home` to the repo directory (where you cloned
+`openclaw-engaging`). This means the container's `$HOME` is the repo
+directory, and all OpenClaw state lives in `.openclaw/` alongside the repo:
 
-**Option A: Scratch (default — every user has `~/orcd/scratch`)**
+```
+~/openclaw-engaging/           # or wherever you cloned it
+├── apptainer/
+├── docs/
+├── .openclaw/                 # ← config, sessions, memory (gitignored)
+│   ├── .env
+│   ├── openclaw.json
+│   └── agents/
+└── ...
+```
+
+**To avoid home directory quota issues**, clone the repo on scratch or
+group storage instead of your home directory:
 
 ```bash
-mkdir -p ~/orcd/scratch/openclaw
-cp -a ~/.openclaw/. ~/orcd/scratch/openclaw/
-rm -rf ~/.openclaw
-ln -s ~/orcd/scratch/openclaw ~/.openclaw
+# Clone directly to scratch
+cd ~/orcd/scratch
+git clone https://github.com/qsimeon/openclaw-engaging.git
+cd openclaw-engaging
+```
+
+Or move an existing clone:
+
+```bash
+mv ~/openclaw-engaging ~/orcd/scratch/
+ln -s ~/orcd/scratch/openclaw-engaging ~/openclaw-engaging  # optional convenience link
 ```
 
 > **Note:** Scratch may be purged after ~90 days of inactivity. If using
-> scratch, back up `~/.openclaw/` periodically (especially
-> `openclaw.json` and `credentials/`).
+> scratch, back up `.openclaw/` periodically (especially `openclaw.json`
+> and `credentials/`). PI/group storage is not auto-purged.
 
-**Option B: PI/group storage (persistent, if available)**
-
-If your PI has allocated group storage, use that instead — it's not
-auto-purged:
-
-```bash
-mkdir -p /orcd/data/<pi-group>/$USER/openclaw
-cp -a ~/.openclaw/. /orcd/data/<pi-group>/$USER/openclaw/
-rm -rf ~/.openclaw
-ln -s /orcd/data/<pi-group>/$USER/openclaw ~/.openclaw
-```
-
-Replace `/orcd/data/<pi-group>/` with your actual path (e.g.,
-`/orcd/data/edboyden/002/`). Check with your PI or run `df -h` to find
-the correct group storage path.
-
-All provided scripts (`openclaw-engaging.sh`, `slurm-gateway.sh`,
-`slurm-openclaw.sh`, `setup.sh`) automatically detect the symlink and
-bind-mount the target directory into the container. If you run manual
-`apptainer exec` commands, you may need to add `-B` for the symlink
-target (e.g., `-B /orcd/scratch/orcd/002`).
+Your real home directory is still accessible inside the container at its
+original path — only `$HOME` changes.
 
 ---
 

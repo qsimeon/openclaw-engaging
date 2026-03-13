@@ -169,7 +169,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # Extract auth token (shared across instances)
-CONFIG_FILE="$HOME/.openclaw/openclaw.json"
+CONFIG_FILE="$REPO_DIR/.openclaw/openclaw.json"
 TOKEN=""
 if [ -f "$CONFIG_FILE" ]; then
   TOKEN=$(python3 -c "

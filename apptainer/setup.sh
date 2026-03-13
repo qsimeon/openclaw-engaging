@@ -94,8 +94,12 @@ if [ ! -f "$SIF_FILE" ]; then
   exit 1
 fi
 
+# Set container home to repo directory — .openclaw/ state lives alongside
+# the repo instead of in the real ~/  (avoids home-dir quota issues).
+HOME_FLAGS="--home $REPO_DIR"
+
 # ── Ensure config directory exists ────────────────────────────────────
-mkdir -p "$HOME/.openclaw"
+mkdir -p "$REPO_DIR/.openclaw"
 
 # ── Run the OpenClaw onboarding wizard ──────────────────────────────
 echo ""
@@ -108,20 +112,37 @@ echo "║    • Model selection                                       ║"
 echo "║    • Messaging channels (optional)                         ║"
 echo "║    • Skills & tools (optional)                             ║"
 echo "║                                                            ║"
-echo "║  All config is saved to ~/.openclaw/ on your home dir.     ║"
+echo "║  All config is saved to .openclaw/ in the repo directory.   ║"
 echo "║  It persists across SLURM jobs.                            ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
-# If ~/.openclaw is a symlink (e.g. to /orcd/data/...), bind-mount the target
+# If .openclaw is a symlink, bind-mount the target so it's reachable
 BIND_FLAGS=""
-if [ -L "$HOME/.openclaw" ]; then
-  SYMLINK_TARGET="$(readlink -f "$HOME/.openclaw")"
+if [ -L "$REPO_DIR/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$REPO_DIR/.openclaw")"
   BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
 fi
 
+# SLURM binds: let the agent submit jobs from inside the container
+if [ "${OPENCLAW_SLURM_BINDS:-}" = "1" ]; then
+  for cmd in sbatch squeue scancel sinfo srun sacct; do
+    [ -f "/usr/bin/$cmd" ] && BIND_FLAGS="$BIND_FLAGS -B /usr/bin/$cmd"
+  done
+  [ -d /etc/slurm ] && BIND_FLAGS="$BIND_FLAGS -B /etc/slurm"
+  [ -d /usr/lib64/slurm ] && BIND_FLAGS="$BIND_FLAGS -B /usr/lib64/slurm"
+  [ -d /run/munge ] && BIND_FLAGS="$BIND_FLAGS -B /run/munge"
+fi
+
+# Strict filesystem isolation (--containall disables auto-mounts)
+CONTAINALL_FLAGS=""
+if [ "${OPENCLAW_CONTAINALL:-}" = "1" ]; then
+  CONTAINALL_FLAGS="--containall"
+  BIND_FLAGS="$BIND_FLAGS -B /tmp"
+fi
+
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" \
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" \
   openclaw onboard --skip-daemon
 
 # ── Apply HPC-friendly settings AFTER onboarding ────────────────────
@@ -130,36 +151,28 @@ apptainer exec $BIND_FLAGS "$SIF_FILE" \
 echo ""
 echo "Applying HPC-friendly settings..."
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set agents.defaults.sandbox.mode off
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set agents.defaults.sandbox.mode off
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set session.reset.mode idle
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set session.reset.mode idle
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set session.reset.idleMinutes 525600
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set session.reset.idleMinutes 525600
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.port 18790
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.port 18790
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.bind lan
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.bind lan
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
 # shellcheck disable=SC2086
-apptainer exec $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.allowedOrigins '["http://localhost:18790"]'
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.allowedOrigins '["http://localhost:18790"]'
 
 echo ""
 echo "  • Sandbox: off (Apptainer container is the security boundary)"
 echo "  • Session idle timeout: 1 year (survives job preemption)"
 echo "  • Gateway: port 18790, LAN bind, device auth disabled (SSH tunnel)"
+echo "  • Home: $REPO_DIR (container \$HOME = repo directory)"
 echo ""
-echo "  Tip: Move ~/.openclaw to scratch to avoid home directory quota issues:"
-echo "    mkdir -p ~/orcd/scratch/openclaw"
-echo "    cp -a ~/.openclaw/. ~/orcd/scratch/openclaw/"
-echo "    rm -rf ~/.openclaw"
-echo "    ln -s ~/orcd/scratch/openclaw ~/.openclaw"
-echo ""
-echo "  Or use PI/group storage if available (persistent, not auto-purged):"
-echo "    ln -s /orcd/data/<pi-group>/\$USER/openclaw ~/.openclaw"
-echo ""
-echo "  Note: scratch may be purged after ~90 days of inactivity."
-echo "  If using scratch, back up ~/.openclaw/ periodically."
+echo "  Config and sessions live in $REPO_DIR/.openclaw/"
+echo "  Clone the repo on scratch or group storage to avoid home quota issues."
 
 # ── Populate workspace with ORCD cluster context ─────────────────────
 "$SCRIPT_DIR/orcd-workspace-init.sh" 2>/dev/null || true
@@ -185,7 +198,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "  Setup complete!"
 echo ""
-echo "  Your config:  ~/.openclaw/"
+echo "  Your config:  $REPO_DIR/.openclaw/"
 echo "  Container:    $SIF_FILE"
 echo ""
 echo "  ── Shortcut ─────────────────────────────────────────────"

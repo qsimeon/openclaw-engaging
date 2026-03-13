@@ -14,7 +14,9 @@
 #
 set -euo pipefail
 
-WORKSPACE="${OPENCLAW_WORKSPACE:-$HOME/.openclaw/workspace}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKSPACE="${OPENCLAW_WORKSPACE:-$REPO_DIR/.openclaw/workspace}"
 mkdir -p "$WORKSPACE"
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -60,7 +62,7 @@ ${PI_STORAGE_LINE:+$PI_STORAGE_LINE
 }
 - **Default scratch:** \`~/orcd/scratch\` (symlink to \`/orcd/scratch/orcd/002/\$USER\`)
 - Check with your PI or run \`df -h\` to find group storage paths
-- \`~/.openclaw\` may be symlinked to scratch/external storage to avoid home quota issues
+- Inside the container, \`~/.openclaw/\` maps to \`<repo-dir>/.openclaw/\` on the host (via \`--home\`)
 
 ## SLURM
 

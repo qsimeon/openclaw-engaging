@@ -135,3 +135,6 @@ openclaw-*.out
 openclaw-*.err
 openclaw-gw-*.out
 openclaw-gw-*.err
+
+# OpenClaw state (container home = repo dir, so .openclaw/ lives here)
+.openclaw/

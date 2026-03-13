@@ -14,6 +14,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SIF_FILE="${OPENCLAW_SIF:-$SCRIPT_DIR/openclaw.sif}"
 
 # Load Apptainer module if on a module-managed system
@@ -39,14 +40,33 @@ ENV_FLAGS=""
 [ -n "${OPENROUTER_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
 [ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
 
-# If ~/.openclaw is a symlink (e.g. to /orcd/data/...), bind-mount the
-# target directory so it's accessible inside the container.
+# Set container home to repo directory — .openclaw/ state lives alongside
+# the repo instead of in the real ~/  (avoids home-dir quota issues).
+HOME_FLAGS="--home $REPO_DIR"
+
+# If .openclaw is a symlink, bind-mount the target so it's reachable
 BIND_FLAGS=""
-if [ -L "$HOME/.openclaw" ]; then
-  SYMLINK_TARGET="$(readlink -f "$HOME/.openclaw")"
-  SYMLINK_PARENT="$(dirname "$SYMLINK_TARGET")"
-  BIND_FLAGS="-B $SYMLINK_PARENT"
+if [ -L "$REPO_DIR/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$REPO_DIR/.openclaw")"
+  BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
+fi
+
+# SLURM binds: let the agent submit jobs from inside the container
+if [ "${OPENCLAW_SLURM_BINDS:-}" = "1" ]; then
+  for cmd in sbatch squeue scancel sinfo srun sacct; do
+    [ -f "/usr/bin/$cmd" ] && BIND_FLAGS="$BIND_FLAGS -B /usr/bin/$cmd"
+  done
+  [ -d /etc/slurm ] && BIND_FLAGS="$BIND_FLAGS -B /etc/slurm"
+  [ -d /usr/lib64/slurm ] && BIND_FLAGS="$BIND_FLAGS -B /usr/lib64/slurm"
+  [ -d /run/munge ] && BIND_FLAGS="$BIND_FLAGS -B /run/munge"
+fi
+
+# Strict filesystem isolation (--containall disables auto-mounts)
+CONTAINALL_FLAGS=""
+if [ "${OPENCLAW_CONTAINALL:-}" = "1" ]; then
+  CONTAINALL_FLAGS="--containall"
+  BIND_FLAGS="$BIND_FLAGS -B /tmp"
 fi
 
 # shellcheck disable=SC2086
-exec apptainer exec $BIND_FLAGS $ENV_FLAGS "$SIF_FILE" openclaw "$@"
+exec apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS $ENV_FLAGS "$SIF_FILE" openclaw "$@"
