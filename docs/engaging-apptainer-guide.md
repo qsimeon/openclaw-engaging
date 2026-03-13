@@ -759,18 +759,6 @@ http://localhost:18790/?token=abc123...
                               ^^^^^^^^^ copy this part
 ```
 
-### ENOTDIR error after moving `.openclaw`
-
-If you moved `~/.openclaw` to external storage while a gateway was running,
-the gateway cached the old path. Cancel and restart:
-
-```bash
-scancel $(squeue --me -h -o "%i" -n openclaw-gw)
-cd ~/openclaw-engaging && ./apptainer/start-gateway.sh
-```
-
-The scripts auto-detect the symlink on startup and bind-mount the target.
-
 ### SSH tunnel "Connection refused"
 
 - Make sure the gateway job is still running: `squeue -u $USER`
