@@ -89,7 +89,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
       # Check for common errors and suggest fixes
       if grep -q "allowedOrigins" "$ERR_FILE" 2>/dev/null; then
         echo "Fix: The gateway now requires allowedOrigins for non-loopback binding."
-        echo "  Run: openclaw config set gateway.controlUi.allowedOrigins '[\"http://localhost:18790\"]'"
+        echo "  Run: openclaw config set gateway.controlUi.allowedOrigins '[\"http://localhost:$TARGET_PORT\"]'"
         echo "  Then relaunch: ./apptainer/start-gateway.sh"
       fi
     else
