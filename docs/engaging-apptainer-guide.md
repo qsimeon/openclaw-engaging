@@ -86,19 +86,18 @@ over HTTPS.
 
 ## Step 1: Clone and Build
 
-SSH into Engaging and clone to scratch (avoids home directory quota issues):
+SSH into Engaging and clone the repo:
 
 ```bash
 ssh <username>@orcd-login.mit.edu
-cd ~/orcd/scratch
 git clone https://github.com/qsimeon/openclaw-engaging.git
 cd openclaw-engaging
 ```
 
 > **Tip:** All scripts set the container's `$HOME` to the repo directory, so
 > all OpenClaw state (`.openclaw/`) lives alongside the repo — not in your
-> real home directory. Cloning on scratch or PI/group storage keeps everything
-> off your home quota automatically.
+> real home directory. If your home quota is tight, clone to scratch instead:
+> `cd ~/orcd/scratch && git clone ...`
 
 Add the upstream remote so you can pull future OpenClaw updates:
 
