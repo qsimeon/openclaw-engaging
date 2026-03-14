@@ -51,11 +51,47 @@ if ! command -v apptainer &>/dev/null; then
   exit 1
 fi
 
+# ── Auto-update from upstream ──────────────────────────────────────
+# Ensures users always build the latest version of OpenClaw.
+# Non-fatal: if network is down or merge conflicts, setup continues
+# with whatever is currently checked out.
+if [ "$ONBOARD_ONLY" = false ] && command -v git &>/dev/null; then
+  echo "Checking for upstream updates..."
+  "$SCRIPT_DIR/update.sh" --check 2>/dev/null || true
+  # If there are updates, offer to apply them before building
+  BEHIND=$(cd "$REPO_DIR" && git rev-list --count "HEAD..upstream/main" 2>/dev/null || echo 0)
+  if [ "$BEHIND" -gt 0 ]; then
+    echo "  $BEHIND new commit(s) from upstream."
+    if [ -t 0 ]; then
+      read -rp "  Apply updates before building? [Y/n] " apply_updates
+      apply_updates="${apply_updates:-Y}"
+    else
+      apply_updates="Y"
+      echo "  Non-interactive mode — applying updates automatically."
+    fi
+    if [[ "$apply_updates" =~ ^[Yy]$ ]]; then
+      if (cd "$REPO_DIR" && git merge upstream/main --no-edit 2>&1); then
+        echo "  Merged upstream/main successfully."
+      else
+        echo "  Merge failed — continuing with current version."
+        (cd "$REPO_DIR" && git merge --abort 2>/dev/null || true)
+      fi
+    fi
+  else
+    echo "  Already up to date."
+  fi
+fi
+
 # ── Build the container ─────────────────────────────────────────────
 if [ "$ONBOARD_ONLY" = false ]; then
   if [ -f "$SIF_FILE" ]; then
     echo "Container already exists at $SIF_FILE"
-    read -rp "Rebuild? [y/N] " rebuild
+    if [ -t 0 ]; then
+      read -rp "Rebuild? [y/N] " rebuild
+    else
+      rebuild="N"
+      echo "Non-interactive mode — keeping existing container."
+    fi
     if [[ "$rebuild" =~ ^[Yy]$ ]]; then
       rm -f "$SIF_FILE"
     else

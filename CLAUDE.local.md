@@ -36,5 +36,5 @@ All exec scripts pass `--home $REPO_DIR` to Apptainer, so the container's `$HOME
 This fork (`qsimeon/openclaw-engaging`) tracks upstream (`openclaw/openclaw`). To merge cleanly:
 
 - **CLAUDE.md** must remain the upstream symlink (→ `AGENTS.md`). Fork-specific guidance goes here in `CLAUDE.local.md`.
-- **`.gitignore`** — fork additions (apptainer/*.sif, SLURM logs, STATUS.md) go at the bottom, after the last upstream line. Do not modify upstream lines.
+- **`.gitignore`** — do NOT modify. Fork-specific excludes live in `.git/info/exclude` (untracked, never causes merge conflicts). Never add fork lines to `.gitignore`.
 - Run `./apptainer/update.sh` to fetch, merge, and rebuild in one step.

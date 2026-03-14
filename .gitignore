@@ -133,20 +133,3 @@ ui/src/ui/__screenshots__
 ui/src/ui/views/__screenshots__
 ui/.vitest-attachments
 docs/superpowers
-
-# ── Fork-specific (openclaw-engaging) ──────────────────────
-
-# Project status (local deepscan tracking)
-STATUS.md
-
-# Apptainer container images (1.5+ GB each)
-apptainer/*.sif
-
-# SLURM job logs
-openclaw-*.out
-openclaw-*.err
-openclaw-gw-*.out
-openclaw-gw-*.err
-
-# OpenClaw state (container home = repo dir, so .openclaw/ lives here)
-.openclaw/
