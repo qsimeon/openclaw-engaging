@@ -62,8 +62,8 @@ over HTTPS.
 ```
 
 - The **container** bundles Node.js and the OpenClaw application (read-only)
-- The container's **home** is set to the repo directory — `.openclaw/` stores
-  all config, sessions, and memory alongside the repo (persistent across jobs)
+- The container's **home** is set to the parent of the repo — `.openclaw/`
+  stores all config, sessions, and memory next to it (persistent across jobs)
 - The agent makes **outbound HTTPS calls** to your chosen LLM provider
 - Minimal resources: ~1 GB RAM, 1 CPU, no GPU, any partition
 
@@ -432,8 +432,8 @@ All exec scripts (`openclaw-engaging.sh`, `slurm-openclaw.sh`,
 | `OPENCLAW_AGENT` | `main` | Agent name (batch/gateway scripts) |
 | `OPENCLAW_PROMPT` | greeting | Task prompt (batch script only) |
 
-> **Note:** The container's `$HOME` is always set to the repo directory
-> (where you cloned `openclaw-engaging`). See
+> **Note:** The container's `$HOME` is set to the parent of the repo
+> (where you ran `git clone`). `.openclaw/` lives there automatically. See
 > [Where `.openclaw` lives](#where-openclaw-lives) for details.
 
 ### SLURM access from inside the container (`OPENCLAW_SLURM_BINDS`)
@@ -490,7 +490,7 @@ OpenClaw is designed so that **nothing is lost** when this happens.
 ### Where state lives
 
 ```
-<repo-dir>/.openclaw/        # Inside the repo directory (gitignored)
+<install-dir>/.openclaw/     # Next to the repo (e.g., ~/.openclaw/)
 ├── .env                     # API key(s)
 ├── openclaw.json            # Config (set by onboarding wizard)
 └── agents/
@@ -500,7 +500,7 @@ OpenClaw is designed so that **nothing is lost** when this happens.
             └── <session-id>.jsonl  # Conversation transcript
 ```
 
-The repo directory (and everything in it) is:
+The install directory (and everything in it) is:
 - **Persistent** across all SLURM jobs
 - **Shared** across all Engaging nodes (NFS)
 - **Private** to your user account
@@ -1089,44 +1089,37 @@ See [Strict isolation](#strict-isolation-openclaw_containall) for details.
 
 ### Where `.openclaw` lives
 
-All scripts set `--home` to the repo directory (where you cloned
-`openclaw-engaging`). This means the container's `$HOME` is the repo
-directory, and all OpenClaw state lives in `.openclaw/` alongside the repo:
+All scripts set the container's `$HOME` to the **parent directory** of
+the repo. This means `.openclaw/` lives next to the repo, in whatever
+directory you cloned `openclaw-engaging` into:
 
 ```
-~/openclaw-engaging/           # or wherever you cloned it
-├── apptainer/
-├── docs/
-├── .openclaw/                 # ← config, sessions, memory (gitignored)
-│   ├── .env
-│   ├── openclaw.json
-│   └── agents/
-└── ...
+~/                             # cloned to ~/openclaw-engaging
+├── openclaw-engaging/         # the repo
+│   ├── apptainer/
+│   ├── docs/
+│   └── ...
+└── .openclaw/                 # ← config, sessions, memory
+    ├── .env
+    ├── openclaw.json
+    └── agents/
 ```
 
-**To avoid home directory quota issues**, clone the repo on scratch or
-group storage instead of your home directory:
+**Your clone location determines where state lives.** If you clone to
+`~/orcd/scratch/openclaw-engaging`, then `.openclaw/` will be at
+`~/orcd/scratch/.openclaw/`. No extra flags or configuration needed.
+
+**To avoid home directory quota issues**, clone to scratch from the start:
 
 ```bash
-# Clone directly to scratch
 cd ~/orcd/scratch
 git clone https://github.com/qsimeon/openclaw-engaging.git
 cd openclaw-engaging
 ```
 
-Or move an existing clone:
-
-```bash
-mv ~/openclaw-engaging ~/orcd/scratch/
-ln -s ~/orcd/scratch/openclaw-engaging ~/openclaw-engaging  # optional convenience link
-```
-
 > **Note:** Scratch may be purged after ~90 days of inactivity. If using
 > scratch, back up `.openclaw/` periodically (especially `openclaw.json`
 > and `credentials/`). PI/group storage is not auto-purged.
-
-Your real home directory is still accessible inside the container at its
-original path — only `$HOME` changes.
 
 ---
 

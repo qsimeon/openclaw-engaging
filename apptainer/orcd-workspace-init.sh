@@ -16,7 +16,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKSPACE="${OPENCLAW_WORKSPACE:-$REPO_DIR/.openclaw/workspace}"
+INSTALL_DIR="$(dirname "$REPO_DIR")"
+WORKSPACE="${OPENCLAW_WORKSPACE:-$INSTALL_DIR/.openclaw/workspace}"
 mkdir -p "$WORKSPACE"
 
 # ── Helpers ───────────────────────────────────────────────────────────
@@ -62,7 +63,7 @@ ${PI_STORAGE_LINE:+$PI_STORAGE_LINE
 }
 - **Default scratch:** \`~/orcd/scratch\` (symlink to \`/orcd/scratch/orcd/002/\$USER\`)
 - Check with your PI or run \`df -h\` to find group storage paths
-- Inside the container, \`~/.openclaw/\` maps to \`<repo-dir>/.openclaw/\` on the host (via \`--home\`)
+- \`~/.openclaw/\` lives next to the repo (in the directory where you cloned \`openclaw-engaging\`)
 
 ## SLURM
 

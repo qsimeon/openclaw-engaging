@@ -43,14 +43,15 @@ ENV_FLAGS=""
 [ -n "${OPENROUTER_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
 [ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
 
-# Set container home to repo directory — .openclaw/ state lives alongside
-# the repo instead of in the real ~/  (avoids home-dir quota issues).
-HOME_FLAGS="--home $REPO_DIR"
+# Set container home to the parent of the repo — .openclaw/ lives next to
+# the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
+INSTALL_DIR="$(dirname "$REPO_DIR")"
+HOME_FLAGS="--home $INSTALL_DIR"
 
 # If .openclaw is a symlink, bind-mount the target so it's reachable
 BIND_FLAGS=""
-if [ -L "$REPO_DIR/.openclaw" ]; then
-  SYMLINK_TARGET="$(readlink -f "$REPO_DIR/.openclaw")"
+if [ -L "$INSTALL_DIR/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$INSTALL_DIR/.openclaw")"
   BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
 fi
 
@@ -77,7 +78,7 @@ LOGIN_NODE="${OPENCLAW_LOGIN_NODE:-orcd-login.mit.edu}"
 AGENT_NAME="${OPENCLAW_AGENT:-}"
 
 # --- Extract gateway auth token + ensure allowedOrigins ---
-CONFIG_FILE="$REPO_DIR/.openclaw/openclaw.json"
+CONFIG_FILE="$INSTALL_DIR/.openclaw/openclaw.json"
 TOKEN=""
 if [ -f "$CONFIG_FILE" ]; then
   # Extract token and patch allowedOrigins if missing (required since upstream v2026.2.22+)
@@ -145,7 +146,7 @@ echo "  ────────────────────────
 echo ""
 echo "  The gateway will run until the job times out or you cancel it."
 echo "  To stop early:  scancel $SLURM_JOB_ID"
-echo "  Sessions and config persist in $REPO_DIR/.openclaw/"
+echo "  Sessions and config persist in $INSTALL_DIR/.openclaw/"
 echo ""
 
 # --- Start Gateway ---

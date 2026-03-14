@@ -24,7 +24,7 @@ Key design: all state lives on `~/.openclaw/` (NFS home directory), so sessions 
 
 ### Container home directory
 
-All exec scripts pass `--home $REPO_DIR` to Apptainer, so the container's `$HOME` is the repo directory (not the user's real `~/`). Config and sessions live in `$REPO_DIR/.openclaw/` (gitignored). To avoid home quota issues, clone the repo on scratch or group storage.
+All exec scripts pass `--home $(dirname $REPO_DIR)` to Apptainer, so the container's `$HOME` is the parent of the repo. `.openclaw/` lives next to the repo (e.g., clone to `~/openclaw-engaging` → `~/.openclaw/`; clone to `~/orcd/scratch/openclaw-engaging` → `~/orcd/scratch/.openclaw/`). The clone location implicitly determines where state lives — no extra flags needed.
 
 ### Environment variables (all exec scripts)
 

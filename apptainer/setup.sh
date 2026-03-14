@@ -130,12 +130,13 @@ if [ ! -f "$SIF_FILE" ]; then
   exit 1
 fi
 
-# Set container home to repo directory — .openclaw/ state lives alongside
-# the repo instead of in the real ~/  (avoids home-dir quota issues).
-HOME_FLAGS="--home $REPO_DIR"
+# Set container home to the parent of the repo — .openclaw/ lives next to
+# the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
+INSTALL_DIR="$(dirname "$REPO_DIR")"
+HOME_FLAGS="--home $INSTALL_DIR"
 
 # ── Ensure config directory exists ────────────────────────────────────
-mkdir -p "$REPO_DIR/.openclaw"
+mkdir -p "$INSTALL_DIR/.openclaw"
 
 # ── Run the OpenClaw onboarding wizard ──────────────────────────────
 echo ""
@@ -148,15 +149,15 @@ echo "║    • Model selection                                       ║"
 echo "║    • Messaging channels (optional)                         ║"
 echo "║    • Skills & tools (optional)                             ║"
 echo "║                                                            ║"
-echo "║  All config is saved to .openclaw/ in the repo directory.   ║"
+echo "║  All config is saved to .openclaw/ next to the repo.        ║"
 echo "║  It persists across SLURM jobs.                            ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 
 # If .openclaw is a symlink, bind-mount the target so it's reachable
 BIND_FLAGS=""
-if [ -L "$REPO_DIR/.openclaw" ]; then
-  SYMLINK_TARGET="$(readlink -f "$REPO_DIR/.openclaw")"
+if [ -L "$INSTALL_DIR/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$INSTALL_DIR/.openclaw")"
   BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
 fi
 
@@ -205,9 +206,9 @@ echo ""
 echo "  • Sandbox: off (Apptainer container is the security boundary)"
 echo "  • Session idle timeout: 1 year (survives job preemption)"
 echo "  • Gateway: port 18790, LAN bind, device auth disabled (SSH tunnel)"
-echo "  • Home: $REPO_DIR (container \$HOME = repo directory)"
+echo "  • Home: $INSTALL_DIR (container \$HOME = parent of repo)"
 echo ""
-echo "  Config and sessions live in $REPO_DIR/.openclaw/"
+echo "  Config and sessions live in $INSTALL_DIR/.openclaw/"
 echo "  Clone the repo on scratch or group storage to avoid home quota issues."
 
 # ── Populate workspace with ORCD cluster context ─────────────────────
@@ -234,7 +235,7 @@ echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "  Setup complete!"
 echo ""
-echo "  Your config:  $REPO_DIR/.openclaw/"
+echo "  Your config:  $INSTALL_DIR/.openclaw/"
 echo "  Container:    $SIF_FILE"
 echo ""
 echo "  ── Shortcut ─────────────────────────────────────────────"

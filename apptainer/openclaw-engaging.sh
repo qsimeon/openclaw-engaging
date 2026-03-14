@@ -40,14 +40,16 @@ ENV_FLAGS=""
 [ -n "${OPENROUTER_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
 [ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
 
-# Set container home to repo directory — .openclaw/ state lives alongside
-# the repo instead of in the real ~/  (avoids home-dir quota issues).
-HOME_FLAGS="--home $REPO_DIR"
+# Set container home to the parent of the repo — .openclaw/ lives next to
+# the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
+# If user clones to ~/orcd/scratch/openclaw-engaging → ~/orcd/scratch/.openclaw/.
+INSTALL_DIR="$(dirname "$REPO_DIR")"
+HOME_FLAGS="--home $INSTALL_DIR"
 
 # If .openclaw is a symlink, bind-mount the target so it's reachable
 BIND_FLAGS=""
-if [ -L "$REPO_DIR/.openclaw" ]; then
-  SYMLINK_TARGET="$(readlink -f "$REPO_DIR/.openclaw")"
+if [ -L "$INSTALL_DIR/.openclaw" ]; then
+  SYMLINK_TARGET="$(readlink -f "$INSTALL_DIR/.openclaw")"
   BIND_FLAGS="-B $(dirname "$SYMLINK_TARGET")"
 fi
 
