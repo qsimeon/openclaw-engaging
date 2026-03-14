@@ -29,10 +29,10 @@ over HTTPS.
   moving anything off-cluster
 - Run long-running analysis as SLURM batch jobs overnight
 - Use interactive sessions during the day, batch jobs at night
-- All conversation history and agent state lives on your home directory —
+- All conversation history and agent state lives in the repo directory —
   survives job preemption, node failures, and cluster maintenance
 - Share a single container image across your lab; each user's config and
-  sessions are isolated in their own `~/.openclaw/`
+  sessions are isolated in their own `.openclaw/` within the repo
 
 ---
 
@@ -49,7 +49,7 @@ over HTTPS.
 │  │  └─────────────┘  └───────┬───────┘   │  │
 │  └────────────────────────────┼───────────┘  │
 │                               │              │
-│  ~/.openclaw/  ◄──────────────┘  (state)     │
+│  .openclaw/    ◄──────────────┘  (state)     │
 │  ~/your-data/  ◄── auto-mounted             │
 │                               │              │
 └───────────────────────────────┼──────────────┘
@@ -62,8 +62,8 @@ over HTTPS.
 ```
 
 - The **container** bundles Node.js and the OpenClaw application (read-only)
-- Your **home directory** is auto-mounted — `~/.openclaw/` stores all config,
-  sessions, and memory (persistent across jobs)
+- The container's **home** is set to the repo directory — `.openclaw/` stores
+  all config, sessions, and memory alongside the repo (persistent across jobs)
 - The agent makes **outbound HTTPS calls** to your chosen LLM provider
 - Minimal resources: ~1 GB RAM, 1 CPU, no GPU, any partition
 
@@ -86,14 +86,23 @@ over HTTPS.
 
 ## Step 1: Clone and Build
 
-SSH into Engaging and run:
+SSH into Engaging and clone to scratch (avoids home directory quota issues):
 
 ```bash
-# Clone the Engaging-ready fork (includes Apptainer recipes + this guide)
+ssh <username>@orcd-login.mit.edu
+cd ~/orcd/scratch
 git clone https://github.com/qsimeon/openclaw-engaging.git
 cd openclaw-engaging
+```
 
-# Add the upstream OpenClaw repo (for pulling future updates)
+> **Tip:** All scripts set the container's `$HOME` to the repo directory, so
+> all OpenClaw state (`.openclaw/`) lives alongside the repo — not in your
+> real home directory. Cloning on scratch or PI/group storage keeps everything
+> off your home quota automatically.
+
+Add the upstream remote so you can pull future OpenClaw updates:
+
+```bash
 git remote add upstream https://github.com/openclaw/openclaw.git
 ```
 
@@ -152,8 +161,9 @@ Or split it if you already built the container in Step 1:
 srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
 ```
 
-The setup script automatically configures HPC-specific settings before
-launching the wizard:
+The setup script automatically checks for upstream OpenClaw updates before
+building (and offers to merge them), then configures HPC-specific settings
+before launching the wizard:
 
 - **Sandbox: off** — disables Docker-in-Docker sandboxing (not available
   inside Apptainer). Without this, the agent can't run shell commands or
@@ -378,8 +388,8 @@ the dashboard works over SSH tunnel without requiring additional device
 pairing — token auth alone is sufficient.
 
 > **If you ran onboarding manually** (Option B) and see "pairing required"
-> when opening the dashboard, add this to `~/.openclaw/openclaw.json` inside
-> the `"gateway"` section:
+> when opening the dashboard, add this to `.openclaw/openclaw.json` (in the
+> repo directory) inside the `"gateway"` section:
 > ```json
 > "controlUi": { "dangerouslyDisableDeviceAuth": true }
 > ```
@@ -733,9 +743,10 @@ To **check for updates without applying them**:
 ```
 
 This prints a one-line notice if updates are available, or nothing if you're
-already up to date. The gateway launcher (`start-gateway.sh`) runs this
-automatically every time you start the gateway — so you'll see a reminder
-if upstream has new commits.
+already up to date. Both `start-gateway.sh` and `setup.sh` run this
+automatically — so you'll always see a reminder when upstream has new commits.
+The `setup.sh` script goes further: it offers to merge updates before building
+the container, ensuring new users always start with the latest version.
 
 ---
 
@@ -794,7 +805,7 @@ opened the dashboard without the token, paste it in the Control UI settings.
 You can also find your token directly:
 
 ```bash
-python3 -c "import json; print(json.load(open('$HOME/.openclaw/openclaw.json'))['gateway']['auth']['token'])"
+python3 -c "import json; print(json.load(open('.openclaw/openclaw.json'))['gateway']['auth']['token'])"
 ```
 
 ### Dashboard shows "pairing required"
@@ -851,7 +862,7 @@ srun --pty bash -c "curl -sI https://api.anthropic.com"
 ### API key not found
 
 - Rerun the wizard: `openclaw configure --section model`
-- Or check: `cat ~/.openclaw/.env`
+- Or check: `cat .openclaw/.env`  (from the repo directory)
 - Or pass explicitly: `ANTHROPIC_API_KEY=sk-ant-... sbatch apptainer/slurm-openclaw.sh`
 
 ### Node.js or module errors
@@ -870,8 +881,8 @@ a shared directory:
 cp apptainer/openclaw.sif /pool/shared-lab/openclaw.sif
 ```
 
-Each user runs their own `openclaw onboard --skip-daemon` to set up their
-personal config in `~/.openclaw/`. One container, many users, isolated state.
+Each user clones the repo and runs `setup.sh` to set up their personal config
+in their own `.openclaw/` directory. One container image, many users, isolated state.
 
 ---
 
@@ -991,14 +1002,15 @@ FORCE=1 ./apptainer/orcd-workspace-init.sh
 
 ### Customizing
 
-Edit the workspace files directly — they live at `~/.openclaw/workspace/`:
+Edit the workspace files directly — they live at `.openclaw/workspace/`
+in the repo directory:
 
 ```bash
-# Add your own tools/paths
-vim ~/.openclaw/workspace/TOOLS.md
+# Add your own tools/paths (from the repo directory)
+vim .openclaw/workspace/TOOLS.md
 
 # Change the agent's personality
-vim ~/.openclaw/workspace/SOUL.md
+vim .openclaw/workspace/SOUL.md
 ```
 
 The init script won't overwrite files that contain custom content (unless you
@@ -1067,8 +1079,9 @@ Or manually with `apptainer exec`:
 
 ```bash
 apptainer exec --containall \
-  -B ~/.openclaw:/home/$USER/.openclaw \
-  -B ~/my-project:/home/$USER/my-project \
+  --home $(pwd) \
+  -B /tmp \
+  -B ~/my-project \
   apptainer/openclaw.sif openclaw agent --local --agent main
 ```
 
