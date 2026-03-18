@@ -169,7 +169,13 @@ echo "╚═══════════════════════�
 echo ""
 
 # Extract auth token (shared across instances)
+# Use $HOME (logical path) when repo is under home dir to preserve symlink
+# paths (on NFS clusters, /home/user may be a symlink to /orcd/home/002/user).
 INSTALL_DIR="$(dirname "$REPO_DIR")"
+REAL_HOME="$(readlink -f "$HOME")"
+if [ "$(readlink -f "$INSTALL_DIR")" = "$REAL_HOME" ]; then
+  INSTALL_DIR="$HOME"
+fi
 CONFIG_FILE="$INSTALL_DIR/.openclaw/openclaw.json"
 TOKEN=""
 if [ -f "$CONFIG_FILE" ]; then

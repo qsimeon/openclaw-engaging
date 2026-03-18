@@ -63,6 +63,10 @@ ENV_FLAGS=""
 # Set container home to the parent of the repo — .openclaw/ lives next to
 # the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
 INSTALL_DIR="$(dirname "$REPO_DIR")"
+REAL_HOME="$(readlink -f "$HOME")"
+if [ "$(readlink -f "$INSTALL_DIR")" = "$REAL_HOME" ]; then
+  INSTALL_DIR="$HOME"
+fi
 HOME_FLAGS="--home $INSTALL_DIR"
 
 # If .openclaw is a symlink, bind-mount the target so it's reachable

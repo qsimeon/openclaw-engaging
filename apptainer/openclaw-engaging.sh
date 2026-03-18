@@ -43,7 +43,14 @@ ENV_FLAGS=""
 # Set container home to the parent of the repo — .openclaw/ lives next to
 # the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
 # If user clones to ~/orcd/scratch/openclaw-engaging → ~/orcd/scratch/.openclaw/.
+# Use $HOME when repo is under home dir to preserve symlink paths (on NFS
+# clusters, /home/user may be a symlink to /orcd/home/002/user, and other
+# symlinks like .openclaw may reference /home/user/... paths).
 INSTALL_DIR="$(dirname "$REPO_DIR")"
+REAL_HOME="$(readlink -f "$HOME")"
+if [ "$(readlink -f "$INSTALL_DIR")" = "$REAL_HOME" ]; then
+  INSTALL_DIR="$HOME"
+fi
 HOME_FLAGS="--home $INSTALL_DIR"
 
 # If .openclaw is a symlink, bind-mount the target so it's reachable

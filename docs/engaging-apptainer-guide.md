@@ -29,10 +29,10 @@ over HTTPS.
   moving anything off-cluster
 - Run long-running analysis as SLURM batch jobs overnight
 - Use interactive sessions during the day, batch jobs at night
-- All conversation history and agent state lives in the repo directory —
+- All conversation history and agent state lives next to the repo —
   survives job preemption, node failures, and cluster maintenance
 - Share a single container image across your lab; each user's config and
-  sessions are isolated in their own `.openclaw/` within the repo
+  sessions are isolated in their own `.openclaw/` directory
 
 ---
 
@@ -94,9 +94,9 @@ git clone https://github.com/qsimeon/openclaw-engaging.git
 cd openclaw-engaging
 ```
 
-> **Tip:** All scripts set the container's `$HOME` to the repo directory, so
-> all OpenClaw state (`.openclaw/`) lives alongside the repo — not in your
-> real home directory. If your home quota is tight, clone to scratch instead:
+> **Tip:** All scripts set the container's `$HOME` to the parent of the repo,
+> so all OpenClaw state (`.openclaw/`) lives next to the repo — not deep
+> inside it. If your home quota is tight, clone to scratch instead:
 > `cd ~/orcd/scratch && git clone ...`
 
 Add the upstream remote so you can pull future OpenClaw updates:
@@ -388,7 +388,7 @@ pairing — token auth alone is sufficient.
 
 > **If you ran onboarding manually** (Option B) and see "pairing required"
 > when opening the dashboard, add this to `.openclaw/openclaw.json` (in the
-> repo directory) inside the `"gateway"` section:
+> parent directory of the repo) inside the `"gateway"` section:
 > ```json
 > "controlUi": { "dangerouslyDisableDeviceAuth": true }
 > ```
@@ -861,7 +861,7 @@ srun --pty bash -c "curl -sI https://api.anthropic.com"
 ### API key not found
 
 - Rerun the wizard: `openclaw configure --section model`
-- Or check: `cat .openclaw/.env`  (from the repo directory)
+- Or check: `cat .openclaw/.env`  (from the parent of the repo)
 - Or pass explicitly: `ANTHROPIC_API_KEY=sk-ant-... sbatch apptainer/slurm-openclaw.sh`
 
 ### Node.js or module errors
@@ -1002,10 +1002,10 @@ FORCE=1 ./apptainer/orcd-workspace-init.sh
 ### Customizing
 
 Edit the workspace files directly — they live at `.openclaw/workspace/`
-in the repo directory:
+next to the repo:
 
 ```bash
-# Add your own tools/paths (from the repo directory)
+# Add your own tools/paths (from the parent of the repo)
 vim .openclaw/workspace/TOOLS.md
 
 # Change the agent's personality

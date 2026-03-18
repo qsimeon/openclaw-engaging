@@ -16,7 +16,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Use $HOME (logical path) when repo is under home dir to preserve symlink
+# paths (on NFS clusters, /home/user may be a symlink to /orcd/home/002/user).
 INSTALL_DIR="$(dirname "$REPO_DIR")"
+REAL_HOME="$(readlink -f "$HOME")"
+if [ "$(readlink -f "$INSTALL_DIR")" = "$REAL_HOME" ]; then
+  INSTALL_DIR="$HOME"
+fi
 WORKSPACE="${OPENCLAW_WORKSPACE:-$INSTALL_DIR/.openclaw/workspace}"
 mkdir -p "$WORKSPACE"
 
