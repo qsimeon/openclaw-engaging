@@ -11,6 +11,10 @@
 # Runs the gateway on a compute node so you can access the dashboard
 # and Telegram/Discord channels from your browser via SSH tunnel.
 #
+# IMPORTANT: No GPU needed! The gateway is a lightweight Node.js server
+# that only needs 1 CPU + 4 GB RAM. Do NOT request a GPU partition —
+# GPU nodes are a scarce shared resource. Use the default partition.
+#
 # Usage:
 #   sbatch apptainer/slurm-gateway.sh
 #
@@ -129,13 +133,13 @@ echo "  ── Connect from your laptop ─────────────�
 echo ""
 echo "  1) SSH tunnel (run on your laptop — kills any old tunnel first):"
 echo ""
-echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; autossh -M 0 -f -N -L $PORT:$NODE:$PORT $(whoami)@$LOGIN_NODE"
+echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -L $PORT:$NODE:$PORT $(whoami)@$LOGIN_NODE"
 echo ""
 echo "     (autossh auto-reconnects if your laptop sleeps; install with:"
 echo "      brew install autossh on Mac, apt install autossh on Linux)"
 echo ""
 echo "     Or without autossh:"
-echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; ssh -f -N -L $PORT:$NODE:$PORT $(whoami)@$LOGIN_NODE"
+echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -L $PORT:$NODE:$PORT $(whoami)@$LOGIN_NODE"
 echo ""
 echo "  2) Open in your browser:"
 echo ""

@@ -65,7 +65,8 @@ over HTTPS.
 - The container's **home** is set to the parent of the repo — `.openclaw/`
   stores all config, sessions, and memory next to it (persistent across jobs)
 - The agent makes **outbound HTTPS calls** to your chosen LLM provider
-- Minimal resources: ~1 GB RAM, 1 CPU, no GPU, any partition
+- Minimal resources: ~1 GB RAM, 1 CPU, **no GPU**, any partition — do not
+  request GPU partitions (they provide no benefit and waste scarce resources)
 
 ---
 
@@ -302,6 +303,11 @@ reach it from your laptop via SSH tunnel.
 
 ### Start the gateway
 
+> **No GPU needed.** The gateway is a lightweight Node.js server — it needs
+> only 1 CPU and 4 GB RAM. Do **not** request a GPU partition (`--gres=gpu:*`
+> or `-p gpu-*`). GPU nodes are a scarce shared resource and provide no
+> benefit here. The default partition works perfectly.
+
 The launcher submits the SLURM job, waits for it to start, and prints the
 connection info automatically — no need to hunt for output files:
 
@@ -321,7 +327,7 @@ You'll see output like:
 ```
   1) SSH tunnel (run on your laptop — kills any old tunnel first):
 
-     lsof -ti:18790 | xargs kill -9 2>/dev/null; autossh -M 0 -f -N -L 18790:node1234:18790 <user>@<login-node>
+     lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -L 18790:node1234:18790 <user>@<login-node>
 
   2) Open in your browser:
 
@@ -334,12 +340,13 @@ You'll see output like:
 from the output:
 
 ```bash
-lsof -ti:18790 | xargs kill -9 2>/dev/null; autossh -M 0 -f -N -L 18790:<node>:18790 <username>@<login-node>
+lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -L 18790:<node>:18790 <username>@<login-node>
 ```
 
 The `lsof ... | xargs kill` prefix clears any stale tunnel on that port
-first — autossh silently fails if the port is already occupied. The whole
-line is safe to copy-paste every time.
+first — autossh silently fails if the port is already occupied. The `sleep 1`
+gives the OS time to release the port (TCP TIME_WAIT). The whole line is safe
+to copy-paste every time.
 
 | Placeholder | Replace with |
 |---|---|
@@ -363,7 +370,7 @@ Host *
 ```
 
 > **If you don't have autossh**, use plain ssh:
-> `lsof -ti:18790 | xargs kill -9 2>/dev/null; ssh -f -N -L 18790:<node>:18790 <username>@<login-node>`
+> `lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -L 18790:<node>:18790 <username>@<login-node>`
 > You'll just need to re-run if the tunnel drops after laptop sleep.
 
 **b) Open the dashboard.** Paste the full URL from the job output into your
@@ -453,6 +460,16 @@ OPENCLAW_SLURM_BINDS=1 sbatch apptainer/slurm-openclaw.sh
 This bind-mounts the host's SLURM binaries (`/usr/bin/sbatch`, etc.),
 libraries (`/usr/lib64/slurm/`), config (`/etc/slurm/`), and munge
 authentication socket (`/run/munge/`) into the container.
+
+> **Security note: sandbox escape by design.** When `OPENCLAW_SLURM_BINDS=1`
+> is set, the agent can submit SLURM jobs that run **outside** the Apptainer
+> container — on the host, with your full user permissions. This is the
+> intended behavior (the whole point is to let the agent orchestrate cluster
+> jobs), but it means the container is no longer a complete security boundary.
+> Jobs submitted by the agent can access any file you can access, install
+> software, and consume your SLURM allocation. **Only enable this when you
+> trust the agent's task and have reviewed what it plans to submit.** When
+> disabled (the default), the agent is fully contained.
 
 > **Note:** This relies on the host and container having compatible system
 > libraries. If you see `sbatch` errors about missing libraries, the host
@@ -821,16 +838,37 @@ Then restart the gateway: `scancel <jobid> && cd ~/openclaw-engaging && sbatch a
 
 The `setup.sh` script pre-configures this automatically.
 
-### Token not auto-filling from URL
+### Token not auto-filling from URL / "Device Identity Required"
 
-The dashboard may not auto-fill the token from the URL query parameter. If you
-see `OPENCLAW_GATEWAY_TOKEN (optional)` in the token field after clicking the
-tokenized URL, copy the token value from the URL and paste it manually.
+Some browsers (especially when the gateway is first accessed) may not auto-fill
+the token from the URL query parameter. You may see `OPENCLAW_GATEWAY_TOKEN
+(optional)` in the token field, or a "Device Identity Required" prompt, even
+after clicking the tokenized URL.
 
-The token is the string after `?token=` in the URL, e.g.:
-```
-http://localhost:18790/?token=abc123...
-                              ^^^^^^^^^ copy this part
+**To fix this:**
+
+1. Copy the token value from the URL — it's the string after `?token=`:
+   ```
+   http://localhost:18790/?token=abc123def456...
+                                 ^^^^^^^^^^^^^^ copy this part
+   ```
+
+2. Paste it into the token input field on the dashboard and submit.
+
+3. If you still see "Device Identity Required", make sure device auth is
+   disabled:
+   ```bash
+   openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
+   ```
+   Then restart the gateway (`scancel <jobid>` and relaunch).
+
+4. If the token field doesn't appear at all, try opening the URL in a private /
+   incognito window, or append `/?token=<your-token>` manually to
+   `http://localhost:18790/`.
+
+**Finding your token** if you've lost it:
+```bash
+python3 -c "import json; print(json.load(open('$HOME/.openclaw/openclaw.json'))['gateway']['auth']['token'])"
 ```
 
 ### SSH tunnel "Connection refused"
@@ -1045,6 +1083,11 @@ It should reference MIT Engaging, SLURM, ORCD storage paths, etc.
   arbitrary code with your permissions
 - Monitor your API usage; some providers have suspended accounts for
   very high automated usage through agent platforms
+- If you enable `OPENCLAW_SLURM_BINDS=1`, the agent can submit SLURM jobs
+  that run outside the container with your full user permissions — this is
+  an intentional sandbox escape. See
+  [SLURM access from inside the container](#slurm-access-from-inside-the-container-openclaw_slurm_binds)
+  for details
 
 ### Sandbox is disabled — by design
 

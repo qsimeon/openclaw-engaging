@@ -20,6 +20,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Normalize NFS paths: on Engaging, /home/user is a symlink to /orcd/home/NNN/user.
+# SLURM resolves symlinks, so pwd may return the NFS path. Prefer $HOME-relative
+# paths so output messages and aliases show user-friendly paths.
+_REAL_HOME="$(readlink -f "$HOME")"
+_REAL_SCRIPT="$(readlink -f "$SCRIPT_DIR")"
+if [[ "$_REAL_SCRIPT" == "$_REAL_HOME"/* ]]; then
+  SCRIPT_DIR="$HOME/${_REAL_SCRIPT#$_REAL_HOME/}"
+  REPO_DIR="$(dirname "$SCRIPT_DIR")"
+fi
 DEF_FILE="$SCRIPT_DIR/openclaw.def"
 SIF_FILE="$SCRIPT_DIR/openclaw.sif"
 
@@ -185,8 +194,21 @@ if [ "${OPENCLAW_CONTAINALL:-}" = "1" ]; then
 fi
 
 # shellcheck disable=SC2086
-apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" \
-  openclaw onboard --skip-daemon
+# Onboard may crash due to plugin init errors (e.g., LINE plugin) — don't
+# let that abort setup.  HPC settings, alias, and workspace init must run
+# regardless.
+ONBOARD_OK=true
+if ! apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" \
+  openclaw onboard --skip-daemon; then
+  ONBOARD_OK=false
+  echo ""
+  echo "  ⚠  Onboarding wizard exited with an error."
+  echo "     This is usually caused by a plugin initialization issue."
+  echo "     Setup will continue — you can configure your API key later:"
+  echo ""
+  echo "       openclaw configure --section model"
+  echo ""
+fi
 
 # ── Apply HPC-friendly settings AFTER onboarding ────────────────────
 # Onboarding creates/modifies openclaw.json. We layer HPC settings on

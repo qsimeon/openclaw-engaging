@@ -17,6 +17,12 @@ exec node openclaw.mjs "$@"
 WRAPPER
   chmod +x /usr/local/bin/openclaw
 
+  # ── Remove broken extensions ─────────────────────────────────────
+  # The LINE extension crashes during onboarding with "LINE runtime not
+  # initialized - plugin not registered" even when unconfigured.  Remove
+  # it at build time so onboarding completes cleanly.
+  rm -rf /app/extensions/line
+
   # ── Skill dependencies ───────────────────────────────────────────
   # Install system packages so OpenClaw skills work during onboarding.
   # Without these, skills fail with "brew not installed" since
