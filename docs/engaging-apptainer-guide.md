@@ -65,8 +65,10 @@ over HTTPS.
 - The container's **home** is set to the parent of the repo — `.openclaw/`
   stores all config, sessions, and memory next to it (persistent across jobs)
 - The agent makes **outbound HTTPS calls** to your chosen LLM provider
-- Minimal resources: ~1 GB RAM, 1 CPU, **no GPU**, any partition — do not
-  request GPU partitions (they provide no benefit and waste scarce resources)
+- Minimal resources: ~1 GB RAM, 1 CPU, **no GPU**, any partition. The agent
+  itself does not need a GPU — it can submit SLURM jobs that request their
+  own GPUs when needed (see [SLURM access](#slurm-access-from-inside-the-container-openclaw_slurm_binds)).
+  Do not reserve GPU nodes for the agent or gateway; it wastes scarce resources
 
 ---
 
@@ -305,8 +307,10 @@ reach it from your laptop via SSH tunnel.
 
 > **No GPU needed.** The gateway is a lightweight Node.js server — it needs
 > only 1 CPU and 4 GB RAM. Do **not** request a GPU partition (`--gres=gpu:*`
-> or `-p gpu-*`). GPU nodes are a scarce shared resource and provide no
-> benefit here. The default partition works perfectly.
+> or `-p gpu-*`). The agent does not need a GPU in its workspace — when
+> your agent needs GPU compute, it can submit SLURM jobs that request their
+> own GPUs (via `OPENCLAW_SLURM_BINDS=1`). Reserving a GPU node for the
+> gateway or agent session just wastes scarce shared resources.
 
 The launcher submits the SLURM job, waits for it to start, and prints the
 connection info automatically — no need to hunt for output files:
@@ -649,7 +653,7 @@ Or edit `slurm-openclaw.sh` to include `-B /pool/lab-data` in the
 | **Compute** | Fixed droplet size | Flexible SLURM allocation |
 | **Data access** | Upload to droplet | Already on cluster |
 | **Cost** | Monthly droplet fee | Free (MIT account) |
-| **GPU** | Extra cost | Available via `--gres` |
+| **GPU** | Extra cost | Not needed — agent submits GPU jobs via SLURM |
 | **Dashboard** | `http://<droplet-ip>:18789/` | SSH tunnel to compute node |
 | **Onboarding** | Same `openclaw onboard` wizard | Same `openclaw onboard` wizard |
 
