@@ -15,15 +15,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SLURM_SCRIPT="$SCRIPT_DIR/slurm-gateway.sh"
-LOG_DIR="$HOME/.openclaw/logs"
 
 if [ ! -f "$SLURM_SCRIPT" ]; then
   echo "Error: $SLURM_SCRIPT not found."
   exit 1
 fi
-
-# Ensure log directory exists (SBATCH --output uses %h/.openclaw/logs/)
-mkdir -p "$LOG_DIR"
 
 # --- Check for existing gateway job ---
 # Check by job name. When OPENCLAW_GATEWAY_PORT is set, also verify the port
@@ -37,7 +33,7 @@ if [ -n "$EXISTING" ]; then
 
   # If a specific port was requested, check that the existing job uses it
   SHOW_EXISTING=true
-  OUT_FILE="$LOG_DIR/openclaw-gw-$JOB_ID.out"
+  OUT_FILE="$REPO_DIR/openclaw-gw-$JOB_ID.out"
   if [ "$TARGET_PORT" != "18790" ] && [ -f "$OUT_FILE" ]; then
     if ! grep -q "Port:.*$TARGET_PORT" "$OUT_FILE" 2>/dev/null; then
       SHOW_EXISTING=false  # different port — not our job
@@ -50,7 +46,7 @@ if [ -n "$EXISTING" ]; then
     if [ -f "$OUT_FILE" ]; then
       cat "$OUT_FILE"
     else
-      echo "Output file not found yet. Try: cat $LOG_DIR/openclaw-gw-$JOB_ID.out"
+      echo "Output file not found yet. Try: cat $REPO_DIR/openclaw-gw-$JOB_ID.out"
     fi
     exit 0
   fi
@@ -73,7 +69,7 @@ fi
 echo "Submitted job $JOB_ID"
 
 # --- Wait for the job to start and produce output ---
-OUT_FILE="$LOG_DIR/openclaw-gw-$JOB_ID.out"
+OUT_FILE="$REPO_DIR/openclaw-gw-$JOB_ID.out"
 echo -n "Waiting for job to start"
 
 WAITED=0
@@ -84,7 +80,7 @@ while [ $WAITED -lt $MAX_WAIT ]; do
   if [ -z "$STATE" ]; then
     echo ""
     echo "Job $JOB_ID exited unexpectedly."
-    ERR_FILE="$LOG_DIR/openclaw-gw-$JOB_ID.err"
+    ERR_FILE="$REPO_DIR/openclaw-gw-$JOB_ID.err"
     if [ -f "$ERR_FILE" ] && [ -s "$ERR_FILE" ]; then
       echo ""
       echo "Error log:"
@@ -97,8 +93,8 @@ while [ $WAITED -lt $MAX_WAIT ]; do
         echo "  Then relaunch: ./apptainer/start-gateway.sh"
       fi
     else
-      echo "  Check: cat $LOG_DIR/openclaw-gw-$JOB_ID.out"
-      echo "  Check: cat $LOG_DIR/openclaw-gw-$JOB_ID.err"
+      echo "  Check: cat $REPO_DIR/openclaw-gw-$JOB_ID.out"
+      echo "  Check: cat $REPO_DIR/openclaw-gw-$JOB_ID.err"
     fi
     exit 1
   fi
@@ -109,13 +105,13 @@ while [ $WAITED -lt $MAX_WAIT ]; do
     if grep -q "Gateway stopped at" "$OUT_FILE" 2>/dev/null; then
       echo " failed!"
       echo ""
-      ERR_FILE="$LOG_DIR/openclaw-gw-$JOB_ID.err"
+      ERR_FILE="$REPO_DIR/openclaw-gw-$JOB_ID.err"
       echo "The gateway process exited. Check the error log:"
       if [ -f "$ERR_FILE" ] && [ -s "$ERR_FILE" ]; then
         echo ""
         tail -5 "$ERR_FILE"
       else
-        echo "  cat $LOG_DIR/openclaw-gw-$JOB_ID.err"
+        echo "  cat $REPO_DIR/openclaw-gw-$JOB_ID.err"
       fi
       exit 1
     fi
@@ -138,4 +134,4 @@ echo ""
 echo "Job $JOB_ID is still starting (waited ${MAX_WAIT}s)."
 echo "Check manually:"
 echo "  squeue -j $JOB_ID"
-echo "  cat $LOG_DIR/openclaw-gw-$JOB_ID.out"
+echo "  cat $REPO_DIR/openclaw-gw-$JOB_ID.out"
