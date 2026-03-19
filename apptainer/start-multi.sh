@@ -101,8 +101,8 @@ for i in $(seq 1 "$NUM_INSTANCES"); do
     OPENCLAW_GATEWAY_PORT="$PORT" \
     OPENCLAW_AGENT="$NAME" \
     sbatch --job-name="$JOB_NAME" \
-           --output="openclaw-gw-${i}-%j.out" \
-           --error="openclaw-gw-${i}-%j.err" \
+           --output="$HOME/.openclaw/logs/openclaw-gw-${i}-%j.out" \
+           --error="$HOME/.openclaw/logs/openclaw-gw-${i}-%j.err" \
            "$SLURM_SCRIPT" 2>&1)
 
   JOB_ID=$(echo "$OUTPUT" | grep -oP '\d+$')

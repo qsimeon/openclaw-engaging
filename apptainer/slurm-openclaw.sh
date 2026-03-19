@@ -3,8 +3,8 @@
 #SBATCH --time=06:00:00
 #SBATCH --mem=4G
 #SBATCH --cpus-per-task=2
-#SBATCH --output=openclaw-%j.out
-#SBATCH --error=openclaw-%j.err
+#SBATCH --output=%h/.openclaw/logs/openclaw-%j.out
+#SBATCH --error=%h/.openclaw/logs/openclaw-%j.err
 
 ## ── Uncomment ONE of the following lines to request a GPU ──
 ## Default GPU (L40S, 44GB):
@@ -37,6 +37,9 @@
 # See docs/engaging-apptainer-guide.md for the full setup guide.
 
 set -euo pipefail
+
+# --- Ensure log directory exists ---
+mkdir -p "$HOME/.openclaw/logs"
 
 # --- Load Apptainer ---
 module load apptainer/1.4.2

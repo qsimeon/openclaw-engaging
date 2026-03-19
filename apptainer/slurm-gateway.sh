@@ -3,8 +3,8 @@
 #SBATCH --time=08:00:00
 #SBATCH --mem=4G
 #SBATCH --cpus-per-task=1
-#SBATCH --output=openclaw-gw-%j.out
-#SBATCH --error=openclaw-gw-%j.err
+#SBATCH --output=%h/.openclaw/logs/openclaw-gw-%j.out
+#SBATCH --error=%h/.openclaw/logs/openclaw-gw-%j.err
 
 # OpenClaw Gateway — persistent server for MIT Engaging HPC
 #
@@ -24,6 +24,9 @@
 # See docs/engaging-apptainer-guide.md for the full guide.
 
 set -euo pipefail
+
+# --- Ensure log directory exists ---
+mkdir -p "$HOME/.openclaw/logs"
 
 # --- Load Apptainer ---
 module load apptainer/1.4.2
