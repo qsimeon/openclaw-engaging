@@ -77,12 +77,23 @@ fi
 
 # Strict filesystem isolation (--containall disables auto-mounts)
 CONTAINALL_FLAGS=""
-if [ "${OPENCLAW_CONTAINALL:-}" = "1" ]; then
+if [ "${OPENCLAW_CONTAINALL:-1}" != "0" ]; then
   CONTAINALL_FLAGS="--containall"
   BIND_FLAGS="$BIND_FLAGS -B /tmp"
 fi
 
-PORT="${OPENCLAW_GATEWAY_PORT:-18790}"
+# --- Auto-detect free port ---
+# If OPENCLAW_GATEWAY_PORT is set, use it. Otherwise scan 18790-18799.
+PORT="${OPENCLAW_GATEWAY_PORT:-}"
+if [ -z "$PORT" ]; then
+  for candidate in $(seq 18790 18799); do
+    if ! ss -tln 2>/dev/null | grep -q ":${candidate} "; then
+      PORT=$candidate
+      break
+    fi
+  done
+  PORT="${PORT:-18790}"
+fi
 NODE=$(hostname)
 LOGIN_NODE="${OPENCLAW_LOGIN_NODE:-orcd-login.mit.edu}"
 AGENT_NAME="${OPENCLAW_AGENT:-}"
@@ -133,13 +144,13 @@ echo "  ── Connect from your laptop ─────────────�
 echo ""
 echo "  1) SSH tunnel (run on your laptop — kills any old tunnel first):"
 echo ""
-echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -L $PORT:$NODE:$PORT $(whoami)@$LOGIN_NODE"
+echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -J $(whoami)@$LOGIN_NODE -L $PORT:localhost:$PORT $(whoami)@$NODE"
 echo ""
 echo "     (autossh auto-reconnects if your laptop sleeps; install with:"
 echo "      brew install autossh on Mac, apt install autossh on Linux)"
 echo ""
 echo "     Or without autossh:"
-echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -L $PORT:$NODE:$PORT $(whoami)@$LOGIN_NODE"
+echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -J $(whoami)@$LOGIN_NODE -L $PORT:localhost:$PORT $(whoami)@$NODE"
 echo ""
 echo "  2) Open in your browser:"
 echo ""
@@ -172,7 +183,7 @@ apptainer exec \
   "$SIF_FILE" \
   openclaw gateway \
     --port "$PORT" \
-    --bind lan \
+    --bind loopback \
     --allow-unconfigured
 
 echo ""

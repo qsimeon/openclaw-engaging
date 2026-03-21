@@ -188,7 +188,7 @@ fi
 
 # Strict filesystem isolation (--containall disables auto-mounts)
 CONTAINALL_FLAGS=""
-if [ "${OPENCLAW_CONTAINALL:-}" = "1" ]; then
+if [ "${OPENCLAW_CONTAINALL:-1}" != "0" ]; then
   CONTAINALL_FLAGS="--containall"
   BIND_FLAGS="$BIND_FLAGS -B /tmp"
 fi
@@ -224,40 +224,23 @@ apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw co
 # shellcheck disable=SC2086
 apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.port 18790
 # shellcheck disable=SC2086
-apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.bind lan
+apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.bind loopback
 # shellcheck disable=SC2086
 apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
 # shellcheck disable=SC2086
 apptainer exec $CONTAINALL_FLAGS $HOME_FLAGS $BIND_FLAGS "$SIF_FILE" openclaw config set gateway.controlUi.allowedOrigins '["http://localhost:18790"]'
 
 echo ""
-echo "  • Sandbox: off (Apptainer container is the security boundary)"
+echo "  • Sandbox: off (Apptainer --containall is the security boundary)"
+echo "  • Filesystem isolation: on (only repo + .openclaw/ visible)"
 echo "  • Session idle timeout: 1 year (survives job preemption)"
-echo "  • Gateway: port 18790, LAN bind, device auth disabled (SSH tunnel)"
+echo "  • Gateway: port 18790, loopback bind (SSH tunnel required)"
 echo "  • Home: $INSTALL_DIR (container \$HOME = parent of repo)"
 echo ""
 echo "  Config and sessions live in $INSTALL_DIR/.openclaw/"
-echo "  Clone the repo on scratch or group storage to avoid home quota issues."
 
 # ── Populate workspace with ORCD cluster context ─────────────────────
 "$SCRIPT_DIR/orcd-workspace-init.sh" 2>/dev/null || true
-
-# ── Install shell alias ────────────────────────────────────────────
-# Create an 'openclaw' alias so users can type 'openclaw ...' instead
-# of 'apptainer exec apptainer/openclaw.sif openclaw ...'.
-WRAPPER="$SCRIPT_DIR/openclaw-engaging.sh"
-ALIAS_LINE="alias openclaw='$WRAPPER'"
-BASHRC="$HOME/.bashrc"
-
-if [ -f "$WRAPPER" ]; then
-  if ! grep -qF "openclaw-engaging.sh" "$BASHRC" 2>/dev/null; then
-    echo "" >> "$BASHRC"
-    echo "# OpenClaw shortcut (added by setup.sh)" >> "$BASHRC"
-    echo "$ALIAS_LINE" >> "$BASHRC"
-    echo "Installed 'openclaw' alias in $BASHRC"
-    echo "  Run: source ~/.bashrc  (or open a new shell)"
-  fi
-fi
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
@@ -266,11 +249,18 @@ echo ""
 echo "  Your config:  $INSTALL_DIR/.openclaw/"
 echo "  Container:    $SIF_FILE"
 echo ""
-echo "  ── Shortcut ─────────────────────────────────────────────"
+echo "  ── Use the openclaw command ───────────────────────────────"
 echo ""
-echo "  An 'openclaw' alias has been added to ~/.bashrc."
-echo "  After running: source ~/.bashrc"
-echo "  You can use 'openclaw' directly, for example:"
+echo "  Add one of these to your ~/.bashrc:"
+echo ""
+echo "    # Option A: source the env file"
+echo "    source $SCRIPT_DIR/openclaw-env.sh"
+echo ""
+echo "    # Option B: load as a module"
+echo "    module use $SCRIPT_DIR"
+echo "    module load openclaw"
+echo ""
+echo "  Then open a new shell (or run: source ~/.bashrc) and use:"
 echo ""
 echo "    openclaw --help"
 echo "    openclaw agent --local --agent main -m \"Hello!\""
@@ -283,11 +273,9 @@ echo ""
 echo "     cd $REPO_DIR"
 echo "     ./apptainer/start-gateway.sh"
 echo ""
-echo "  2) On your laptop, run the autossh tunnel (copy from output):"
+echo "  2) On your laptop, run the SSH tunnel (copy from output):"
 echo ""
-echo "     autossh -M 0 -f -N -L 18790:<node>:18790 \$(whoami)@<login-node>"
-echo ""
-echo "     (install once: brew install autossh on Mac)"
+echo "     ssh -J \$(whoami)@orcd-login.mit.edu -L 18790:localhost:18790 \$(whoami)@<node> -N"
 echo ""
 echo "  3) Open the dashboard URL from the output in your browser."
 echo ""

@@ -88,7 +88,7 @@ fi
 
 # Strict filesystem isolation (--containall disables auto-mounts)
 CONTAINALL_FLAGS=""
-if [ "${OPENCLAW_CONTAINALL:-}" = "1" ]; then
+if [ "${OPENCLAW_CONTAINALL:-1}" != "0" ]; then
   CONTAINALL_FLAGS="--containall"
   BIND_FLAGS="$BIND_FLAGS -B /tmp"
 fi
