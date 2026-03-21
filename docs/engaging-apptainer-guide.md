@@ -262,11 +262,8 @@ openclaw doctor
 openclaw sessions
 ```
 
-> If the alias wasn't installed (e.g., you used Option B), add it manually:
-> ```bash
-> echo "alias openclaw='~/openclaw-engaging/apptainer/openclaw-engaging.sh'" >> ~/.bashrc
-> source ~/.bashrc
-> ```
+> **Tip:** You can also run the wrapper directly without sourcing anything:
+> `~/orcd/scratch/oclaw/openclaw-engaging/apptainer/openclaw-engaging.sh --version`
 
 ---
 
@@ -292,7 +289,7 @@ openclaw agent --local --agent main \
 ### Batch job (unattended)
 
 ```bash
-cd ~/openclaw-engaging
+cd ~/orcd/scratch/oclaw/openclaw-engaging
 OPENCLAW_PROMPT="Summarize all CSV files in ~/my-project/data/" \
   sbatch apptainer/slurm-openclaw.sh
 ```
@@ -332,7 +329,7 @@ The launcher submits the SLURM job, waits for it to start, and prints the
 connection info automatically — no need to hunt for output files:
 
 ```bash
-cd ~/openclaw-engaging
+cd ~/orcd/scratch/oclaw/openclaw-engaging
 ./apptainer/start-gateway.sh
 ```
 
@@ -762,7 +759,7 @@ Instead of running the manual steps above, you can use the `update.sh` script
 to handle the full cycle — fetch, merge, and rebuild — in one command:
 
 ```bash
-cd ~/openclaw-engaging
+cd ~/orcd/scratch/oclaw/openclaw-engaging
 ./apptainer/update.sh
 ```
 
@@ -855,7 +852,7 @@ disable device auth for the Control UI (token auth still protects access):
 openclaw config set gateway.controlUi.dangerouslyDisableDeviceAuth true
 ```
 
-Then restart the gateway: `scancel <jobid> && cd ~/openclaw-engaging && sbatch apptainer/slurm-gateway.sh`
+Then restart the gateway: `scancel <jobid> && cd ~/orcd/scratch/oclaw/openclaw-engaging && sbatch apptainer/slurm-gateway.sh`
 
 The `setup.sh` script pre-configures this automatically.
 
@@ -1160,15 +1157,15 @@ the repo. This means `.openclaw/` lives next to the repo, in whatever
 directory you cloned `openclaw-engaging` into:
 
 ```
-~/                             # cloned to ~/openclaw-engaging
-├── openclaw-engaging/         # the repo
+~/orcd/scratch/oclaw/                  # container $HOME (parent of repo)
+├── openclaw-engaging/                 # the repo
 │   ├── apptainer/
 │   ├── docs/
 │   └── ...
-└── .openclaw/                 # ← config, sessions, memory
-    ├── .env
+└── .openclaw/                         # ← config, sessions, memory
     ├── openclaw.json
-    └── agents/
+    ├── agents/
+    └── workspace/
 ```
 
 **Your clone location determines where state lives.** If you clone to
