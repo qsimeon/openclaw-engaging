@@ -93,16 +93,25 @@ SSH into Engaging and clone the repo:
 
 ```bash
 ssh <username>@orcd-login.mit.edu
+mkdir -p ~/orcd/scratch/oclaw && cd ~/orcd/scratch/oclaw
 git clone https://github.com/qsimeon/openclaw-engaging.git
 cd openclaw-engaging
 ```
 
-> **Tip:** All scripts set the container's `$HOME` to the parent of the repo,
-> so all OpenClaw state (`.openclaw/`) lives next to the repo — not deep
-> inside it. If your home quota is tight, clone to scratch instead:
-> `cd ~/orcd/scratch && git clone ...`
+Or use the one-line installer:
 
-Add the upstream remote so you can pull future OpenClaw updates:
+```bash
+curl -fsSL https://raw.githubusercontent.com/qsimeon/openclaw-engaging/main/install_stage0.sh | bash
+cd ~/orcd/scratch/oclaw/openclaw-engaging
+```
+
+> **Why scratch?** Cloning to scratch (not your home directory) means the
+> container's `$HOME` is set to `~/orcd/scratch/oclaw/` — the agent can only
+> see files in that directory, not your real home (`~/.ssh/`, `~/.gnupg/`, etc.).
+> All OpenClaw state (`.openclaw/`) lives next to the repo automatically.
+
+Add the upstream remote (the installer does this automatically, but if you
+cloned manually):
 
 ```bash
 git remote add upstream https://github.com/openclaw/openclaw.git
@@ -172,9 +181,11 @@ before launching the wizard:
   access your files.
 - **Session idle timeout: 1 year** — effectively disables auto-reset so
   sessions survive job preemption and cluster maintenance.
-- **Gateway: LAN bind, port 18790, device auth disabled** — the gateway
-  binds to all interfaces so it's reachable via SSH tunnel, and device
-  pairing is disabled since the SSH tunnel itself provides security.
+- **Filesystem isolation: on** — `--containall` is enabled by default. The
+  agent can only see the repo directory, `.openclaw/`, and `/tmp`. Your real
+  home directory (`.ssh/`, `.gnupg/`, etc.) is not visible.
+- **Gateway: loopback bind, port 18790, device auth disabled** — the gateway
+  listens only on localhost; access it via SSH tunnel with `-J` (ProxyJump).
 
 ### Option B: Manual steps
 
@@ -228,15 +239,20 @@ On DigitalOcean, OpenClaw is installed globally via npm so you just type
 container, so normally you'd need `apptainer exec apptainer/openclaw.sif
 openclaw ...` every time.
 
-The `setup.sh` script eliminates this by adding an `openclaw` alias to your
-`~/.bashrc`. After setup, activate it:
+The setup script provides two ways to get the `openclaw` command. Add one of
+these to your `~/.bashrc`:
 
 ```bash
-source ~/.bashrc
+# Option A: source the env file
+source ~/orcd/scratch/oclaw/openclaw-engaging/apptainer/openclaw-env.sh
+
+# Option B: load as a module
+module use ~/orcd/scratch/oclaw/openclaw-engaging/apptainer
+module load openclaw
 ```
 
-Now you can use `openclaw` directly — it handles module loading and container
-paths for you:
+Then open a new shell (or `source ~/.bashrc`) and use `openclaw` directly —
+it handles module loading, container paths, and filesystem isolation for you:
 
 ```bash
 openclaw --help          # same output as DigitalOcean
@@ -331,7 +347,7 @@ You'll see output like:
 ```
   1) SSH tunnel (run on your laptop — kills any old tunnel first):
 
-     lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -L 18790:node1234:18790 <user>@<login-node>
+     lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -J <user>@orcd-login.mit.edu -L 18790:localhost:18790 <user>@node1234
 
   2) Open in your browser:
 
@@ -344,19 +360,20 @@ You'll see output like:
 from the output:
 
 ```bash
-lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -L 18790:<node>:18790 <username>@<login-node>
+lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -J <username>@orcd-login.mit.edu -L 18790:localhost:18790 <username>@<node>
 ```
 
-The `lsof ... | xargs kill` prefix clears any stale tunnel on that port
-first — autossh silently fails if the port is already occupied. The `sleep 1`
-gives the OS time to release the port (TCP TIME_WAIT). The whole line is safe
-to copy-paste every time.
+The `-J` flag uses ProxyJump: your laptop connects to the login node, then
+hops to the compute node. The gateway listens on localhost only, so this is
+the only way to reach it (more secure than the old LAN-bind approach).
+
+The `lsof ... | xargs kill` prefix clears any stale tunnel first. The
+`sleep 1` gives the OS time to release the port.
 
 | Placeholder | Replace with |
 |---|---|
 | `<node>` | Compute node from the output (e.g., `node3311`) |
 | `<username>` | Your Engaging username |
-| `<login-node>` | Your login host (e.g., `eofe10.mit.edu` or `orcd-login.mit.edu`) |
 
 `autossh` automatically reconnects the tunnel if your laptop sleeps or the
 connection drops. `-M 0` **must come first** — it tells autossh to rely on
@@ -374,7 +391,7 @@ Host *
 ```
 
 > **If you don't have autossh**, use plain ssh:
-> `lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -L 18790:<node>:18790 <username>@<login-node>`
+> `lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -J <username>@orcd-login.mit.edu -L 18790:localhost:18790 <username>@<node>`
 > You'll just need to re-run if the tunnel drops after laptop sleep.
 
 **b) Open the dashboard.** Paste the full URL from the job output into your
@@ -437,7 +454,7 @@ All exec scripts (`openclaw-engaging.sh`, `slurm-openclaw.sh`,
 |----------|---------|-------------|
 | `OPENCLAW_SIF` | `apptainer/openclaw.sif` | Path to container image |
 | `OPENCLAW_SLURM_BINDS` | off | Bind-mount SLURM commands into container |
-| `OPENCLAW_CONTAINALL` | off | Strict filesystem isolation |
+| `OPENCLAW_CONTAINALL` | **on** | Filesystem isolation (set `0` to disable) |
 | `OPENCLAW_GATEWAY_PORT` | `18790` | Gateway port (gateway scripts only) |
 | `OPENCLAW_LOGIN_NODE` | `orcd-login.mit.edu` | Login node for SSH tunnel info |
 | `OPENCLAW_AGENT` | `main` | Agent name (batch/gateway scripts) |
@@ -1081,8 +1098,10 @@ It should reference MIT Engaging, SLURM, ORCD storage paths, etc.
 > [MIT IS&T data classification](https://ist.mit.edu/security/data-classification)
 > for guidance.
 
-- Only grant the agent access to directories it needs (use explicit
-  `-B /path` bind mounts rather than mounting everything)
+- **You are responsible for the actions of your agent.** Be sure you and any
+  of your agents follow the [Acceptable Use and Code of Conduct](https://orcd-docs.mit.edu/code-of-conduct/).
+- Only grant the agent access to directories it needs (use `APPTAINER_BIND`
+  for explicit bind mounts rather than disabling containall)
 - Review third-party skills before enabling them — skills can execute
   arbitrary code with your permissions
 - Monitor your API usage; some providers have suspended accounts for
