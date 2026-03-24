@@ -87,83 +87,55 @@ over HTTPS.
 
 ---
 
-## Step 1: Clone and Build
+## Step 1: Install (one command)
 
-SSH into Engaging and clone the repo:
+SSH into Engaging, then run the installer:
 
 ```bash
 ssh <username>@orcd-login.mit.edu
-mkdir -p ~/orcd/scratch/oclaw && cd ~/orcd/scratch/oclaw
-git clone https://github.com/qsimeon/openclaw-engaging.git
-cd openclaw-engaging
-```
-
-Or use the one-line installer:
-
-```bash
 curl -fsSL https://raw.githubusercontent.com/qsimeon/openclaw-engaging/main/install_stage0.sh | bash
-cd ~/orcd/scratch/oclaw/openclaw-engaging
 ```
+
+This clones the repo to `~/orcd/scratch/oclaw/openclaw-engaging` and sets
+up the upstream remote. Takes about 30 seconds.
 
 > **Why scratch?** Cloning to scratch (not your home directory) means the
-> container's `$HOME` is set to `~/orcd/scratch/oclaw/` — the agent can only
+> container's `$HOME` is `~/orcd/scratch/oclaw/` — the agent can only
 > see files in that directory, not your real home (`~/.ssh/`, `~/.gnupg/`, etc.).
 > All OpenClaw state (`.openclaw/`) lives next to the repo automatically.
 
-Add the upstream remote (the installer does this automatically, but if you
-cloned manually):
+<details>
+<summary>Manual clone (alternative)</summary>
 
 ```bash
+mkdir -p ~/orcd/scratch/oclaw && cd ~/orcd/scratch/oclaw
+git clone https://github.com/qsimeon/openclaw-engaging.git
+cd openclaw-engaging
 git remote add upstream https://github.com/openclaw/openclaw.git
 ```
 
-Verify your remotes:
-
-```bash
-git remote -v
-# origin    https://github.com/qsimeon/openclaw-engaging.git (fetch)
-# upstream  https://github.com/openclaw/openclaw.git (fetch)
-```
-
-Now build the container:
-
-```bash
-# Load Apptainer
-module load apptainer/1.4.2
-
-# Build the container on a compute node (~10 minutes)
-# Login nodes hit process limits — always use srun for builds
-srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
-  apptainer build apptainer/openclaw.sif apptainer/openclaw.def
-```
-
-This pulls the same Docker image used by DigitalOcean and packages it as an
-Apptainer `.sif` file.
-
-Verify:
-
-```bash
-apptainer exec apptainer/openclaw.sif openclaw --version
-```
+</details>
 
 ---
 
-## Step 2: Run the Setup Wizard
+## Step 2: Build + Configure (one command)
 
-This is the Engaging equivalent of DigitalOcean's 1-Click Deploy. The
-OpenClaw onboarding wizard walks you through everything interactively.
-
-### Option A: Automated 1-Click Script (recommended)
-
-The setup script builds the container (if needed), pre-configures HPC
-settings, and launches the wizard — all in one go:
+This is the Engaging equivalent of DigitalOcean's 1-Click Deploy. One `srun`
+command builds the container (~10 min), then launches the interactive setup
+wizard — the same wizard used on DigitalOcean:
 
 ```bash
-chmod +x apptainer/setup.sh
-
-# Run everything on a compute node (needs --pty for the wizard)
+cd ~/orcd/scratch/oclaw/openclaw-engaging
 srun --pty --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh
 ```
+
+The wizard walks you through API key, model, channels, and skills. When it
+finishes, HPC-specific settings are applied automatically:
+
+- **Filesystem isolation: on** — `--containall` by default (agent can't see `~/.ssh/`, etc.)
+- **Sandbox: off** — Apptainer is the security boundary (Docker-in-Docker not available)
+- **Session idle timeout: 1 year** — sessions survive job preemption
+- **Gateway: loopback bind, port 18790** — access via SSH tunnel
 
 Or split it if you already built the container in Step 1:
 
@@ -173,62 +145,49 @@ srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
 ```
 
 The setup script automatically checks for upstream OpenClaw updates before
-building (and offers to merge them), then configures HPC-specific settings
-before launching the wizard:
-
-- **Sandbox: off** — disables Docker-in-Docker sandboxing (not available
-  inside Apptainer). Without this, the agent can't run shell commands or
-  access your files.
-- **Session idle timeout: 1 year** — effectively disables auto-reset so
-  sessions survive job preemption and cluster maintenance.
-- **Filesystem isolation: on** — `--containall` is enabled by default. The
-  agent can only see the repo directory, `.openclaw/`, and `/tmp`. Your real
-  home directory (`.ssh/`, `.gnupg/`, etc.) is not visible.
-- **Gateway: loopback bind, port 18790, device auth disabled** — the gateway
-  listens only on localhost; access it via SSH tunnel with `-J` (ProxyJump).
-
-### Option B: Manual steps
-
-```bash
-# Get an interactive compute node (the wizard needs a terminal)
-srun --pty --mem=1G --time=00:30:00 bash
-
-# Load Apptainer on the compute node
-module load apptainer/1.4.2
-
-# Launch the onboarding wizard
-apptainer exec apptainer/openclaw.sif openclaw onboard --skip-daemon
-```
-
-If you use Option B, also disable sandboxing:
-
-```bash
-openclaw config set agents.defaults.sandbox.mode off
-```
+building (and offers to merge them).
 
 ### What the wizard covers
 
 1. **LLM provider** — pick Anthropic, OpenAI, OpenRouter, or others
-2. **API key** — paste your key (stored securely in `~/.openclaw/.env`)
+2. **API key** — paste your key (stored in `.openclaw/.env` next to the repo)
 3. **Model selection** — choose your default model
 4. **Channels** (optional) — connect Telegram, Discord, Slack, etc.
 5. **Skills** (optional) — enable web search, file tools, and more
-
-> **Why `--skip-daemon`?** On DigitalOcean, OpenClaw installs a systemd
-> service so the gateway runs 24/7. Engaging doesn't have systemd on compute
-> nodes, so we skip that. Instead, you run agents on-demand through SLURM,
-> and sessions persist on your home directory between runs.
 
 > **Skill install failures are normal.** Some skills require Homebrew taps
 > that can't be installed inside the read-only container. You'll see
 > "brew not installed" errors — **this is fine**. The core agent and most
 > skills (web search, file tools, code execution, etc.) work regardless.
-> You can install missing skill dependencies later in your home directory.
 
 > **Health check "SECURITY ERROR" about ws://.** The wizard warns that the
 > gateway uses plaintext `ws://` on a non-loopback address. This is expected
 > — on Engaging you connect via an encrypted SSH tunnel, so the traffic is
 > secure. You can safely ignore this warning.
+
+<details>
+<summary>Advanced: split build and configure into separate steps</summary>
+
+If you already built the container (or want to rebuild without re-running the wizard):
+
+```bash
+# Build only (non-interactive, no --pty needed)
+srun --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh --build-only
+
+# Wizard only (container must already exist)
+srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
+```
+
+Manual onboarding (without setup.sh):
+
+```bash
+srun --pty --mem=1G --time=00:30:00 bash
+module load apptainer/1.4.2
+apptainer exec apptainer/openclaw.sif openclaw onboard --skip-daemon
+openclaw config set agents.defaults.sandbox.mode off
+```
+
+</details>
 
 ---
 
@@ -953,100 +912,6 @@ in their own `.openclaw/` directory. One container image, many users, isolated s
 
 ---
 
-## Running Multiple Agents in Parallel
-
-You can launch multiple independent gateway instances simultaneously — useful
-for class demos, parallel experiments, or giving each team member their own
-dashboard.
-
-### Architecture
-
-Each instance is a fully independent stack:
-
-```
-┌─ Your laptop ─────────────────────────────────────────────┐
-│                                                           │
-│  Browser tab 1 → http://localhost:18790/?token=...        │
-│  Browser tab 2 → http://localhost:18791/?token=...        │
-│  Browser tab 3 → http://localhost:18792/?token=...        │
-│           │              │              │                  │
-│           └──── SSH tunnel (one or multiple) ─────┐       │
-└───────────────────────────────────────────────────┼───────┘
-                                                    │
-┌─ Engaging cluster ────────────────────────────────┼───────┐
-│                                                   │       │
-│  ┌──────────────┐  ┌──────────────┐  ┌────────────┴─┐    │
-│  │ SLURM job 1  │  │ SLURM job 2  │  │ SLURM job 3  │    │
-│  │ port 18790   │  │ port 18791   │  │ port 18792   │    │
-│  │ agent-1      │  │ agent-2      │  │ agent-3      │    │
-│  └──────────────┘  └──────────────┘  └──────────────┘    │
-│                                                           │
-│  Shared: ~/.openclaw/ config, NFS home directory          │
-└───────────────────────────────────────────────────────────┘
-```
-
-### Quick start
-
-```bash
-# Launch 3 independent instances
-./apptainer/start-multi.sh 3
-
-# Or with custom names (e.g., for a class)
-./apptainer/start-multi.sh 3 --prefix demo
-# → demo-1 on :18790, demo-2 on :18791, demo-3 on :18792
-```
-
-The script prints a summary table with job IDs, nodes, ports, SSH tunnel
-commands, and dashboard URLs — designed for easy copy-paste.
-
-### SSH tunnels
-
-The output includes a single combined tunnel command for all instances:
-
-```bash
-autossh -M 0 -f -N -J user@orcd-login.mit.edu \
-  -L 18790:localhost:18790 user@node1 &
-autossh -M 0 -f -N -J user@orcd-login.mit.edu \
-  -L 18791:localhost:18791 user@node2 &
-```
-
-> Note: With the gateway now binding to loopback only, you need one
-> `ssh -J` tunnel per instance (each targeting its own compute node).
-> The combined multi-`-L` form only works when all instances are on
-> the same node.
-
-Or you can open per-instance tunnels separately.
-
-### Cleanup
-
-```bash
-# Stop all instances (job IDs shown in the summary)
-scancel JOB_ID_1 JOB_ID_2 JOB_ID_3
-
-# Or cancel all your gateway jobs at once
-scancel -u $USER -n openclaw-gw-1
-scancel -u $USER -n openclaw-gw-2
-scancel -u $USER -n openclaw-gw-3
-```
-
-### Alternative: shared gateway with multiple agents
-
-For advanced users, you can also run a single gateway that routes to multiple
-named agents:
-
-```bash
-# Create named agents
-openclaw agents add project-a
-openclaw agents add project-b
-
-# One gateway serves all agents (switch in the dashboard)
-./apptainer/start-gateway.sh
-```
-
-This uses fewer SLURM resources but all agents share one gateway process.
-
----
-
 ## Agent Identity & Cluster Knowledge
 
 OpenClaw agents load **workspace files** (`TOOLS.md`, `SOUL.md`, `IDENTITY.md`)
@@ -1209,7 +1074,6 @@ cd openclaw-engaging
 ## Next Steps
 
 - **Multiple agents**: `openclaw agents add <name>` — isolate per-project
-- **Parallel instances**: `./apptainer/start-multi.sh N` — independent dashboards
 - **Tools & skills**: Web search, file I/O, browser automation, custom skills
 - **Memory**: Persistent knowledge with SQLite + vector search
 - **Channels**: Telegram, Discord, Slack (needs a long-running gateway job)

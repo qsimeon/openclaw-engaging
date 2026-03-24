@@ -40,7 +40,9 @@ cd "$REPO_NAME"
 
 echo "Adding upstream remote..."
 git remote add upstream "$UPSTREAM_URL"
-git fetch upstream --quiet
+# Note: we do NOT git fetch upstream here — the upstream repo is large and
+# the fetch would add several minutes to the install for no immediate benefit.
+# The upstream remote is used by ./apptainer/update.sh when you want to sync.
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"

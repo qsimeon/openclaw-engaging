@@ -121,9 +121,8 @@ openclaw sessions                                    # List sessions
 ### Gateway (browser dashboard)
 
 \`\`\`bash
-cd ~/openclaw-engaging
+cd ~/orcd/scratch/oclaw/openclaw-engaging
 ./apptainer/start-gateway.sh                         # Launch gateway job
-./apptainer/start-multi.sh N                         # N parallel instances
 \`\`\`
 
 ### Batch jobs
