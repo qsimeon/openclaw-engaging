@@ -494,25 +494,28 @@ authentication socket (`/run/munge/`) into the container.
 > SLURM version may be incompatible. As a fallback, the agent can write batch
 > scripts and you can run `sbatch` outside the container.
 
-### Strict isolation (`OPENCLAW_CONTAINALL`)
+### Filesystem isolation (`OPENCLAW_CONTAINALL`, default: on)
 
-For maximum filesystem isolation, set `OPENCLAW_CONTAINALL=1`. This passes
-`--containall` to Apptainer, which disables auto-mounting of home, `/tmp`,
-and the current working directory:
+By default, all scripts pass `--containall` to Apptainer. This disables
+auto-mounting of home, `/tmp`, and the current working directory — the agent
+can only see the repo directory, `.openclaw/`, and `/tmp`:
 
 ```bash
-OPENCLAW_CONTAINALL=1 openclaw agent --local --agent main
+# Default (containall on) — agent can't see ~/.ssh, ~/.gnupg, etc.
+openclaw agent --local --agent main
+
+# To grant access to additional directories, use APPTAINER_BIND:
+APPTAINER_BIND="~/orcd/scratch/oclaw/workdata" \
+  openclaw agent --local --agent main \
+  -m "Analyze the data in ~/orcd/scratch/oclaw/workdata/"
+
+# Disable containall (not recommended):
+OPENCLAW_CONTAINALL=0 openclaw agent --local --agent main
 ```
 
 The scripts automatically add `--home` and `-B /tmp` so the agent can still
-access its config and scratch space. To grant access to additional directories,
-use `APPTAINER_BIND`:
-
-```bash
-OPENCLAW_CONTAINALL=1 APPTAINER_BIND="~/my-project" \
-  openclaw agent --local --agent main \
-  -m "Analyze the data in ~/my-project/"
-```
+access its config and scratch space. Only bind directories the agent actually
+needs — avoid disabling containall entirely.
 
 ---
 
@@ -525,8 +528,8 @@ OpenClaw is designed so that **nothing is lost** when this happens.
 ### Where state lives
 
 ```
-<install-dir>/.openclaw/     # Next to the repo (e.g., ~/.openclaw/)
-├── .env                     # API key(s)
+~/orcd/scratch/oclaw/.openclaw/     # Next to the repo
+├── .env                            # API key(s)
 ├── openclaw.json            # Config (set by onboarding wizard)
 └── agents/
     └── main/
@@ -596,22 +599,31 @@ openclaw sessions
 
 ## Filesystem Access & Your Data
 
-Apptainer **automatically mounts your home directory** into the container.
-This means the agent can read and write files in `~/` just like a regular
-process.
+By default, the scripts run with `--containall` (filesystem isolation on).
+The agent can only see:
 
-### What's accessible by default
+- The **repo directory** (`~/orcd/scratch/oclaw/openclaw-engaging/`)
+- **`.openclaw/`** next to the repo (config, sessions, memory)
+- **`/tmp`** (scratch)
 
-| Path | Mounted? | Notes |
-|------|----------|-------|
-| `~/` (home directory) | Yes, auto-mounted | Read/write. Where `~/.openclaw/` state lives |
-| `/tmp` | Yes, auto-mounted | Temporary scratch space |
-| Current working directory | Yes, auto-mounted | Whatever directory you run `apptainer exec` from |
+Your home directory, `.ssh/`, `.gnupg/`, and everything else is **not
+visible** to the agent by default. This is intentional — it prevents prompt
+injection attacks from exfiltrating credentials.
+
+### What's accessible by default (containall on)
+
+| Path | Accessible? | Notes |
+|------|-------------|-------|
+| Repo directory | Yes | Read/write |
+| `.openclaw/` next to repo | Yes | Config, sessions, credentials |
+| `/tmp` | Yes | Temporary scratch |
+| `~/` (home directory) | **No** | Hidden by containall |
+| `~/.ssh/`, `~/.gnupg/` | **No** | Hidden by containall |
 
 ### What's NOT accessible by default
 
-Shared lab directories, project pools, and scratch filesystems outside your
-home are **not** mounted automatically. You must bind them explicitly:
+Shared lab directories, project pools, and scratch filesystems are **not**
+mounted. You must bind them explicitly:
 
 ```bash
 # Mount a shared lab directory
@@ -1117,38 +1129,38 @@ On a regular machine, OpenClaw uses Docker containers as a sandbox. On
 Engaging, Docker isn't available — **Apptainer is the security boundary
 instead**.
 
-By default, Apptainer auto-mounts your home directory and current working
-directory into the container. The container filesystem itself is read-only.
-This gives you a practical level of isolation: the agent can access your
-files but cannot modify the host OS, install system packages, or affect
-other users.
+By default, all scripts enable `--containall`. The container filesystem is
+read-only; the agent can access its config and repo but **not** your home
+directory, `.ssh/`, or other sensitive paths. This is the primary security
+boundary — the agent cannot modify the host OS, install system packages, or
+affect other users.
 
-**For stricter isolation**, set `OPENCLAW_CONTAINALL=1` to enable
-`--containall` mode, which prevents auto-mounting and gives you full control
-over what the agent can see:
+To grant the agent access to additional directories, use `APPTAINER_BIND`:
 
 ```bash
-# All scripts support this — home and /tmp are auto-bound
-OPENCLAW_CONTAINALL=1 openclaw agent --local --agent main
-
-# Add extra directories via APPTAINER_BIND
-OPENCLAW_CONTAINALL=1 APPTAINER_BIND="~/my-project" \
+# Give the agent access to a specific data directory
+APPTAINER_BIND="~/orcd/scratch/oclaw/workdata" \
   openclaw agent --local --agent main \
-  -m "Analyze the data in ~/my-project/"
+  -m "Analyze the data in ~/orcd/scratch/oclaw/workdata/"
 ```
 
 Or manually with `apptainer exec`:
 
 ```bash
 apptainer exec --containall \
-  --home $(pwd) \
+  --home ~/orcd/scratch/oclaw \
   -B /tmp \
-  -B ~/my-project \
+  -B ~/orcd/scratch/oclaw/workdata \
   apptainer/openclaw.sif openclaw agent --local --agent main
 ```
 
-This is useful if you want the agent to only access specific directories.
-See [Strict isolation](#strict-isolation-openclaw_containall) for details.
+To disable containall entirely (not recommended):
+
+```bash
+OPENCLAW_CONTAINALL=0 openclaw agent --local --agent main
+```
+
+See [Filesystem isolation](#filesystem-isolation-openclaw_containall-default-on) for details.
 
 ### Where `.openclaw` lives
 
