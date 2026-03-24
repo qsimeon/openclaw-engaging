@@ -1004,8 +1004,16 @@ commands, and dashboard URLs — designed for easy copy-paste.
 The output includes a single combined tunnel command for all instances:
 
 ```bash
-autossh -M 0 -f -N -L 18790:node1:18790 -L 18791:node2:18791 user@orcd-login.mit.edu
+autossh -M 0 -f -N -J user@orcd-login.mit.edu \
+  -L 18790:localhost:18790 user@node1 &
+autossh -M 0 -f -N -J user@orcd-login.mit.edu \
+  -L 18791:localhost:18791 user@node2 &
 ```
+
+> Note: With the gateway now binding to loopback only, you need one
+> `ssh -J` tunnel per instance (each targeting its own compute node).
+> The combined multi-`-L` form only works when all instances are on
+> the same node.
 
 Or you can open per-instance tunnels separately.
 
