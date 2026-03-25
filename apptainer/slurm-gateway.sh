@@ -56,7 +56,8 @@ REAL_HOME="$(readlink -f "$HOME")"
 if [ "$(readlink -f "$INSTALL_DIR")" = "$REAL_HOME" ]; then
   INSTALL_DIR="$HOME"
 fi
-HOME_FLAGS="--home $INSTALL_DIR"
+REAL_INSTALL_DIR="$(readlink -f "$INSTALL_DIR")"
+HOME_FLAGS="--home $REAL_INSTALL_DIR:/home/$(id -un)"
 
 # If .openclaw is a symlink, bind-mount the target so it's reachable
 BIND_FLAGS=""
@@ -144,12 +145,6 @@ echo "  ── Connect from your laptop ─────────────�
 echo ""
 echo "  1) SSH tunnel (run on your laptop — kills any old tunnel first):"
 echo ""
-echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -J $(whoami)@$LOGIN_NODE -L $PORT:localhost:$PORT $(whoami)@$NODE"
-echo ""
-echo "     (autossh auto-reconnects if your laptop sleeps; install with:"
-echo "      brew install autossh on Mac, apt install autossh on Linux)"
-echo ""
-echo "     Or without autossh:"
 echo "     lsof -ti:$PORT | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -J $(whoami)@$LOGIN_NODE -L $PORT:localhost:$PORT $(whoami)@$NODE"
 echo ""
 echo "  2) Open in your browser:"

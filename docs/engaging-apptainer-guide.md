@@ -303,7 +303,7 @@ You'll see output like:
 ```
   1) SSH tunnel (run on your laptop — kills any old tunnel first):
 
-     lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -J <user>@orcd-login.mit.edu -L 18790:localhost:18790 <user>@node1234
+     lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -J <user>@orcd-login.mit.edu -L 18790:localhost:18790 <user>@node1234
 
   2) Open in your browser:
 
@@ -312,33 +312,27 @@ You'll see output like:
 
 ### Connect from your laptop
 
-**a) Open the SSH tunnel.** On your local machine, run the tunnel command
-from the output:
+**a) Open the SSH tunnel.** On your local machine, copy and run the exact
+tunnel command from the job output — it already has the node name filled in:
 
 ```bash
-lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; autossh -M 0 -f -N -J <username>@orcd-login.mit.edu -L 18790:localhost:18790 <username>@<node>
+lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -J <username>@orcd-login.mit.edu -L 18790:localhost:18790 <username>@<node>
 ```
 
 The `-J` flag uses ProxyJump: your laptop connects to the login node, then
 hops to the compute node. The gateway listens on localhost only, so this is
-the only way to reach it (more secure than the old LAN-bind approach).
+the only way to reach it.
 
-The `lsof ... | xargs kill` prefix clears any stale tunnel first. The
-`sleep 1` gives the OS time to release the port.
+The `lsof ... | xargs kill` prefix clears any stale tunnel first (safe to
+run even if no tunnel is open). The `sleep 1` gives the OS time to release
+the port.
 
 | Placeholder | Replace with |
 |---|---|
-| `<node>` | Compute node from the output (e.g., `node3311`) |
+| `<node>` | Compute node from the output (e.g., `node1606`) |
 | `<username>` | Your Engaging username |
 
-`autossh` automatically reconnects the tunnel if your laptop sleeps or the
-connection drops. `-M 0` **must come first** — it tells autossh to rely on
-SSH keepalive instead of a monitoring port.
-
-Install autossh once: `brew install autossh` (Mac) or `apt install autossh`
-(Linux).
-
-Also add these to your `~/.ssh/config` so SSH detects dead connections:
+Add these to your `~/.ssh/config` to detect dead connections automatically:
 
 ```
 Host *
@@ -346,9 +340,7 @@ Host *
     ServerAliveCountMax 3
 ```
 
-> **If you don't have autossh**, use plain ssh:
-> `lsof -ti:18790 | xargs kill -9 2>/dev/null; sleep 1; ssh -f -N -J <username>@orcd-login.mit.edu -L 18790:localhost:18790 <username>@<node>`
-> You'll just need to re-run if the tunnel drops after laptop sleep.
+If the tunnel drops (e.g., after laptop sleep), just re-run the same command.
 
 **b) Open the dashboard.** Paste the full URL from the job output into your
 browser. The URL includes the auth token (`?token=...`), which authenticates

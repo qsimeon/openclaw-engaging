@@ -51,7 +51,8 @@ REAL_HOME="$(readlink -f "$HOME")"
 if [ "$(readlink -f "$INSTALL_DIR")" = "$REAL_HOME" ]; then
   INSTALL_DIR="$HOME"
 fi
-HOME_FLAGS="--home $INSTALL_DIR"
+REAL_INSTALL_DIR="$(readlink -f "$INSTALL_DIR")"
+HOME_FLAGS="--home $REAL_INSTALL_DIR:/home/$(id -un)"
 
 # If .openclaw is a symlink, bind-mount the target so it's reachable
 BIND_FLAGS=""
