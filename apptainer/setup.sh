@@ -34,17 +34,24 @@ SIF_FILE="$SCRIPT_DIR/openclaw.sif"
 
 BUILD_ONLY=false
 ONBOARD_ONLY=false
+YES=false
 
 for arg in "$@"; do
   case "$arg" in
-    --build-only)  BUILD_ONLY=true ;;
+    --build-only)   BUILD_ONLY=true ;;
     --onboard-only) ONBOARD_ONLY=true ;;
+    --yes|-y)       YES=true ;;
     --help|-h)
-      echo "Usage: $0 [--build-only | --onboard-only]"
+      echo "Usage: $0 [--build-only | --onboard-only] [--yes]"
       echo ""
       echo "  (no flags)      Build container + run onboarding wizard"
-      echo "  --build-only    Just build the .sif container image"
+      echo "  --build-only    Just build the .sif container image (no wizard)"
       echo "  --onboard-only  Just run the onboarding wizard (container must exist)"
+      echo "  --yes / -y      Non-interactive: skip all prompts (use defaults)"
+      echo ""
+      echo "  Tip: submit the build step without --pty, then do the wizard separately:"
+      echo "    srun --mem=8G --time=01:00:00 --cpus-per-task=2 $0 --build-only --yes"
+      echo "    srun --pty --mem=4G --time=00:30:00 $0 --onboard-only"
       exit 0
       ;;
   esac
@@ -71,7 +78,10 @@ if [ "$ONBOARD_ONLY" = false ] && command -v git &>/dev/null; then
   BEHIND=$(cd "$REPO_DIR" && git rev-list --count "HEAD..upstream/main" 2>/dev/null || echo 0)
   if [ "$BEHIND" -gt 0 ]; then
     echo "  $BEHIND new commit(s) from upstream."
-    if [ -t 0 ]; then
+    if [ "$YES" = true ]; then
+      apply_updates="N"
+      echo "  --yes flag: skipping upstream update, proceeding with current version."
+    elif [ -t 0 ]; then
       read -rp "  Apply updates before building? [Y/n] " apply_updates
       apply_updates="${apply_updates:-Y}"
     else
@@ -95,7 +105,10 @@ fi
 if [ "$ONBOARD_ONLY" = false ]; then
   if [ -f "$SIF_FILE" ]; then
     echo "Container already exists at $SIF_FILE"
-    if [ -t 0 ]; then
+    if [ "$YES" = true ]; then
+      rebuild="N"
+      echo "Keeping existing container (--yes)."
+    elif [ -t 0 ]; then
       read -rp "Rebuild? [y/N] " rebuild
     else
       rebuild="N"
@@ -243,25 +256,31 @@ echo "  Config and sessions live in $INSTALL_DIR/.openclaw/"
 # ── Populate workspace with ORCD cluster context ─────────────────────
 "$SCRIPT_DIR/orcd-workspace-init.sh" 2>/dev/null || true
 
+# ── Install Lmod modulefile to ~/modulefiles/ ────────────────────────
+MODDIR="$HOME/modulefiles"
+mkdir -p "$MODDIR"
+cp "$SCRIPT_DIR/openclaw.lua" "$MODDIR/openclaw.lua"
+
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "  Setup complete!"
 echo ""
 echo "  Your config:  $INSTALL_DIR/.openclaw/"
 echo "  Container:    $SIF_FILE"
+echo "  Modulefile:   $MODDIR/openclaw.lua"
 echo ""
-echo "  ── Use the openclaw command ───────────────────────────────"
+echo "  ── Activate the openclaw command ─────────────────────────"
 echo ""
-echo "  Add one of these to your ~/.bashrc:"
+echo "  1) Add to ~/.bashrc (one time — standard HPC practice):"
 echo ""
-echo "    # Option A: source the env file"
-echo "    source $SCRIPT_DIR/openclaw-env.sh"
+echo "     echo 'module use ~/modulefiles' >> ~/.bashrc"
+echo "     source ~/.bashrc"
 echo ""
-echo "    # Option B: load as a module"
-echo "    module use $SCRIPT_DIR"
-echo "    module load openclaw"
+echo "  2) Load OpenClaw each session (or add to ~/.bashrc after step 1):"
 echo ""
-echo "  Then open a new shell (or run: source ~/.bashrc) and use:"
+echo "     module load openclaw"
+echo ""
+echo "  Then use:"
 echo ""
 echo "    openclaw --help"
 echo "    openclaw agent --local --agent main -m \"Hello!\""

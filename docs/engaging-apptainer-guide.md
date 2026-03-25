@@ -118,14 +118,28 @@ git remote add upstream https://github.com/openclaw/openclaw.git
 
 ---
 
-## Step 2: Build + Configure (one command)
+## Step 2: Build + Configure
 
-This is the Engaging equivalent of DigitalOcean's 1-Click Deploy. One `srun`
-command builds the container (~10 min), then launches the interactive setup
-wizard — the same wizard used on DigitalOcean:
+This is the Engaging equivalent of DigitalOcean's 1-Click Deploy. `setup.sh`
+builds the container (~10–15 min) and then launches the interactive setup
+wizard — the same wizard used on DigitalOcean.
+
+**Recommended: two-step approach** so you can submit the slow build and walk
+away, then come back for the quick interactive wizard:
 
 ```bash
 cd ~/orcd/scratch/oclaw/openclaw-engaging
+
+# 2a. Build the container (unattended, no --pty needed — go do other things)
+srun --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh --build-only --yes
+
+# 2b. Run the setup wizard (~5 min, interactive)
+srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
+```
+
+Alternatively, run both in one session if you can stay at the terminal:
+
+```bash
 srun --pty --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh
 ```
 
@@ -136,16 +150,6 @@ finishes, HPC-specific settings are applied automatically:
 - **Sandbox: off** — Apptainer is the security boundary (Docker-in-Docker not available)
 - **Session idle timeout: 1 year** — sessions survive job preemption
 - **Gateway: loopback bind, port 18790** — access via SSH tunnel
-
-Or split it if you already built the container in Step 1:
-
-```bash
-# Onboard only (interactive wizard, container must already exist)
-srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
-```
-
-The setup script automatically checks for upstream OpenClaw updates before
-building (and offers to merge them).
 
 ### What the wizard covers
 
@@ -166,19 +170,7 @@ building (and offers to merge them).
 > secure. You can safely ignore this warning.
 
 <details>
-<summary>Advanced: split build and configure into separate steps</summary>
-
-If you already built the container (or want to rebuild without re-running the wizard):
-
-```bash
-# Build only (non-interactive, no --pty needed)
-srun --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh --build-only
-
-# Wizard only (container must already exist)
-srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
-```
-
-Manual onboarding (without setup.sh):
+<summary>Manual onboarding (without setup.sh)</summary>
 
 ```bash
 srun --pty --mem=1G --time=00:30:00 bash
@@ -191,38 +183,38 @@ openclaw config set agents.defaults.sandbox.mode off
 
 ---
 
-## Step 3: The `openclaw` Command
+## Step 3: Activate the `openclaw` Command
 
-On DigitalOcean, OpenClaw is installed globally via npm so you just type
-`openclaw ...`. On Engaging, the app lives inside a read-only Apptainer
-container, so normally you'd need `apptainer exec apptainer/openclaw.sif
-openclaw ...` every time.
-
-The setup script provides two ways to get the `openclaw` command. Add one of
-these to your `~/.bashrc`:
+`setup.sh` installs a Lmod modulefile to `~/modulefiles/openclaw.lua`
+automatically. To use it, add `module use ~/modulefiles` to your `~/.bashrc`
+once (this is standard practice on Engaging — many tools do the same):
 
 ```bash
-# Option A: source the env file
-source ~/orcd/scratch/oclaw/openclaw-engaging/apptainer/openclaw-env.sh
+echo 'module use ~/modulefiles' >> ~/.bashrc
+source ~/.bashrc
+```
 
-# Option B: load as a module
-module use ~/orcd/scratch/oclaw/openclaw-engaging/apptainer
+Then load OpenClaw whenever you want it:
+
+```bash
 module load openclaw
 ```
 
-Then open a new shell (or `source ~/.bashrc`) and use `openclaw` directly —
-it handles module loading, container paths, and filesystem isolation for you:
+Or add that line to your `~/.bashrc` too, so `openclaw` is always available:
 
 ```bash
-openclaw --help          # same output as DigitalOcean
-openclaw --version
-openclaw configure
-openclaw doctor
-openclaw sessions
+echo 'module load openclaw' >> ~/.bashrc
 ```
 
-> **Tip:** You can also run the wrapper directly without sourcing anything:
-> `~/orcd/scratch/oclaw/openclaw-engaging/apptainer/openclaw-engaging.sh --version`
+Verify it works:
+
+```bash
+openclaw --help
+openclaw --version
+```
+
+> **Tip:** The module sets `OPENCLAW_CONTAINALL=1` by default (filesystem isolation on).
+> To run without isolation: `OPENCLAW_CONTAINALL=0 openclaw agent ...`
 
 ---
 
