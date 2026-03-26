@@ -118,30 +118,31 @@ git remote add upstream https://github.com/openclaw/openclaw.git
 
 ---
 
-## Step 2: Build + Configure
+## Step 2: Build + Configure (~15–20 min)
 
-This is the Engaging equivalent of DigitalOcean's 1-Click Deploy. `setup.sh`
-builds the container (~10–15 min) and then launches the interactive setup
-wizard — the same wizard used on DigitalOcean.
-
-**Recommended: two-step approach** so you can submit the slow build and walk
-away, then come back for the quick interactive wizard:
+This is the Engaging equivalent of DigitalOcean's 1-Click Deploy. One command
+builds the container and launches the interactive setup wizard — the same
+wizard used on DigitalOcean. Stay at the terminal for this one:
 
 ```bash
 cd ~/orcd/scratch/oclaw/openclaw-engaging
+srun --pty --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh
+```
 
-# 2a. Build the container (unattended, no --pty needed — go do other things)
-srun --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh --build-only --yes
+The build takes ~10–15 min, then the wizard takes ~5 min.
 
-# 2b. Run the setup wizard (~5 min, interactive)
+<details>
+<summary>Split into two steps (if you need to walk away during the build)</summary>
+
+```bash
+# Step 2a: build only — submit and walk away (~10-15 min, no --pty needed)
+srun --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh --build-only
+
+# Step 2b: wizard only — stay at terminal (~5 min)
 srun --pty --mem=4G --time=00:30:00 ./apptainer/setup.sh --onboard-only
 ```
 
-Alternatively, run both in one session if you can stay at the terminal:
-
-```bash
-srun --pty --mem=8G --time=01:00:00 --cpus-per-task=2 ./apptainer/setup.sh
-```
+</details>
 
 The wizard walks you through API key, model, channels, and skills. When it
 finishes, HPC-specific settings are applied automatically:
@@ -233,28 +234,25 @@ openclaw agent --local --agent main -m "Hello from Engaging!"
 
 ```bash
 srun --pty --mem=1G --time=02:00:00 bash
-openclaw agent --local --agent main \
-  -m "I have CSV files in ~/my-project/data/. Help me explore them."
+openclaw agent --local --agent main -m "I have CSV files in ~/my-project/data/. Help me explore them."
 ```
 
 ### Batch job (unattended)
 
 ```bash
 cd ~/orcd/scratch/oclaw/openclaw-engaging
-OPENCLAW_PROMPT="Summarize all CSV files in ~/my-project/data/" \
-  sbatch apptainer/slurm-openclaw.sh
+OPENCLAW_PROMPT="Summarize all CSV files in ~/my-project/data/" sbatch apptainer/slurm-openclaw.sh
 ```
 
 Output goes to `openclaw-<jobid>.out`.
 
 ### Binding extra directories
 
-Apptainer auto-mounts your home directory. If your data lives elsewhere:
+By default the agent can only see the repo and `.openclaw/`. To give it access
+to additional data:
 
 ```bash
-apptainer exec -B /pool/lab-data:/data apptainer/openclaw.sif \
-  openclaw agent --local --agent main \
-  -m "Analyze the datasets in /data/"
+APPTAINER_BIND="/pool/lab-data" openclaw agent --local --agent main -m "Analyze the datasets in /pool/lab-data/"
 ```
 
 ---
@@ -411,8 +409,7 @@ container — the agent can write batch scripts and run `sbatch` directly:
 
 ```bash
 # Agent can now use sbatch, squeue, scancel, sinfo, srun, sacct
-OPENCLAW_SLURM_BINDS=1 openclaw agent --local --agent main \
-  -m "Write a SLURM batch script for my analysis and submit it"
+OPENCLAW_SLURM_BINDS=1 openclaw agent --local --agent main -m "Write a SLURM batch script for my analysis and submit it"
 
 # With batch jobs
 OPENCLAW_SLURM_BINDS=1 sbatch apptainer/slurm-openclaw.sh
@@ -448,9 +445,7 @@ can only see the repo directory, `.openclaw/`, and `/tmp`:
 openclaw agent --local --agent main
 
 # To grant access to additional directories, use APPTAINER_BIND:
-APPTAINER_BIND="~/orcd/scratch/oclaw/workdata" \
-  openclaw agent --local --agent main \
-  -m "Analyze the data in ~/orcd/scratch/oclaw/workdata/"
+APPTAINER_BIND="~/orcd/scratch/oclaw/workdata" openclaw agent --local --agent main -m "Analyze the data in ~/orcd/scratch/oclaw/workdata/"
 
 # Disable containall (not recommended):
 OPENCLAW_CONTAINALL=0 openclaw agent --local --agent main
@@ -570,22 +565,10 @@ mounted. You must bind them explicitly:
 
 ```bash
 # Mount a shared lab directory
-apptainer exec -B /pool/lab-data apptainer/openclaw.sif \
-  openclaw agent --local --agent main \
-  -m "Read the CSV files in /pool/lab-data/experiment-2025/"
+APPTAINER_BIND="/pool/lab-data" openclaw agent --local --agent main -m "Read the CSV files in /pool/lab-data/experiment-2025/"
 
-# Mount multiple paths
-apptainer exec \
-  -B /pool/lab-data \
-  -B /scratch/$USER \
-  apptainer/openclaw.sif \
-  openclaw agent --local --agent main \
-  -m "Compare datasets in /pool/lab-data/ with results in /scratch/$USER/"
-
-# Mount with a custom path inside the container
-apptainer exec -B /nfs/shared/project42:/data apptainer/openclaw.sif \
-  openclaw agent --local --agent main \
-  -m "Analyze everything in /data/"
+# Mount multiple paths (comma-separated)
+APPTAINER_BIND="/pool/lab-data,/scratch/$USER" openclaw agent --local --agent main -m "Compare datasets in /pool/lab-data/ with results in /scratch/$USER/"
 ```
 
 ### For batch jobs
@@ -654,8 +637,7 @@ image (same one used on DigitalOcean) and layers on HPC-specific additions:
 To rebuild when upstream releases a new version:
 
 ```bash
-srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
-  apptainer build --force apptainer/openclaw.sif apptainer/openclaw.def
+srun --mem=8G --time=01:00:00 --cpus-per-task=2 apptainer build --force apptainer/openclaw.sif apptainer/openclaw.def
 ```
 
 ---
@@ -701,8 +683,7 @@ After merging, rebuild to pick up the latest OpenClaw version:
 
 ```bash
 module load apptainer/1.4.2
-srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
-  apptainer build --force apptainer/openclaw.sif apptainer/openclaw.def
+srun --mem=8G --time=01:00:00 --cpus-per-task=2 apptainer build --force apptainer/openclaw.sif apptainer/openclaw.def
 ```
 
 Your `~/.openclaw/` config and sessions are unaffected — only the container
@@ -734,8 +715,6 @@ To **check for updates without applying them**:
 This prints a one-line notice if updates are available, or nothing if you're
 already up to date. Both `start-gateway.sh` and `setup.sh` run this
 automatically — so you'll always see a reminder when upstream has new commits.
-The `setup.sh` script goes further: it offers to merge updates before building
-the container, ensuring new users always start with the latest version.
 
 ---
 
@@ -753,8 +732,7 @@ module load apptainer/1.4.2
 Login nodes restrict process counts. Always build on a compute node:
 
 ```bash
-srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
-  apptainer build apptainer/openclaw.sif apptainer/openclaw.def
+srun --mem=8G --time=01:00:00 --cpus-per-task=2 apptainer build apptainer/openclaw.sif apptainer/openclaw.def
 ```
 
 ### Container build OOM killed
@@ -762,8 +740,7 @@ srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
 The build needs at least 8 GB. If mksquashfs is killed:
 
 ```bash
-srun --mem=8G --time=01:00:00 --cpus-per-task=2 \
-  apptainer build apptainer/openclaw.sif apptainer/openclaw.def
+srun --mem=8G --time=01:00:00 --cpus-per-task=2 apptainer build apptainer/openclaw.sif apptainer/openclaw.def
 ```
 
 ### Container build fails (disk space)
