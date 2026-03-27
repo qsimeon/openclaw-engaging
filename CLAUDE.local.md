@@ -14,8 +14,8 @@ The `apptainer/` directory contains recipes for running OpenClaw on the MIT Enga
 - `update.sh` — Automated upstream sync: fetch + merge + rebuild (`--check` for check-only)
 - `openclaw-engaging.sh` — Convenience wrapper (API key passthrough, module loading, containall)
 - `orcd-workspace-init.sh` — Populates `$INSTALL_DIR/.openclaw/workspace/` with ORCD/Engaging cluster context (TOOLS.md, SOUL.md). Idempotent; called by `setup.sh` after onboarding.
-- `openclaw-env.sh` — Source file for `~/.bashrc` (provides `openclaw` alias + containall default)
-- `openclaw.lua` — Lmod modulefile (alternative to source file)
+- `openclaw-env.sh` — Legacy source file (still works; module approach is preferred)
+- `openclaw.lua` — Lmod modulefile; `setup.sh` auto-installs to `~/modulefiles/openclaw.lua`
 
 Install: `curl -fsSL https://raw.githubusercontent.com/qsimeon/openclaw-engaging/main/install_stage0.sh | bash`
 
@@ -27,12 +27,12 @@ Full guide: `docs/engaging-apptainer-guide.md`
 
 - **`--containall` is ON by default.** The agent only sees the repo dir, `.openclaw/`, and `/tmp`. Host `~/.ssh/`, `~/.gnupg/`, etc. are NOT visible. Set `OPENCLAW_CONTAINALL=0` to disable.
 - **Gateway binds to loopback** (localhost only). Access via `ssh -J user@login -L PORT:localhost:PORT user@node`.
-- **No `.bashrc` modification.** Users `source openclaw-env.sh` or `module load openclaw`.
+- **Module activation.** `setup.sh` installs `~/modulefiles/openclaw.lua`; users add `module use ~/modulefiles` to `.bashrc` (once), then `module load openclaw` per session.
 - Extra data directories: `APPTAINER_BIND="~/data" openclaw agent ...`
 
 ### Container home directory
 
-All exec scripts pass `--home $(dirname $REPO_DIR)` to Apptainer, so the container's `$HOME` is the parent of the repo. `.openclaw/` lives next to the repo (e.g., clone to `~/orcd/scratch/oclaw/openclaw-engaging` → `~/orcd/scratch/oclaw/.openclaw/`). The clone location implicitly determines where state lives — no extra flags needed.
+All exec scripts pass `--home $REAL_INSTALL_DIR:/home/$(id -un)` to Apptainer (two-part src:dst syntax). This mounts the real scratch path as `/home/username` inside the container, so `/etc/passwd` and the bind mount agree — prevents the `ENOENT mkdir /home/user` error when the install dir is a symlink (e.g. `~/orcd/scratch`). `.openclaw/` lives next to the repo (e.g., clone to `~/orcd/scratch/oclaw/openclaw-engaging` → `~/orcd/scratch/oclaw/.openclaw/`).
 
 ### Environment variables (all exec scripts)
 
