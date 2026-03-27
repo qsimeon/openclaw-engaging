@@ -50,7 +50,7 @@ for arg in "$@"; do
       echo "  --yes / -y      Non-interactive: skip all prompts (use defaults)"
       echo ""
       echo "  Tip: submit the build step without --pty, then do the wizard separately:"
-      echo "    srun --mem=8G --time=01:00:00 --cpus-per-task=2 $0 --build-only --yes"
+      echo "    srun --mem=8G --time=01:00:00 --cpus-per-task=2 $0 --build-only"
       echo "    srun --pty --mem=4G --time=00:30:00 $0 --onboard-only"
       exit 0
       ;;
@@ -123,7 +123,7 @@ if [ ! -f "$SIF_FILE" ]; then
 fi
 
 # Set container home to the parent of the repo — .openclaw/ lives next to
-# the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
+# the repo (e.g., clone to ~/orcd/scratch/oclaw/openclaw-engaging → ~/orcd/scratch/oclaw/.openclaw/).
 # Use $HOME (logical path) when repo is under home dir to preserve symlink
 # paths (on NFS clusters, /home/user may be a symlink to /orcd/home/002/user).
 INSTALL_DIR="$(dirname "$REPO_DIR")"

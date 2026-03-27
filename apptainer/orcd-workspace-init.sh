@@ -128,7 +128,7 @@ cd ~/orcd/scratch/oclaw/openclaw-engaging
 ### Batch jobs
 
 \`\`\`bash
-cd ~/openclaw-engaging
+cd ~/orcd/scratch/oclaw/openclaw-engaging
 OPENCLAW_PROMPT="Your task here" sbatch apptainer/slurm-openclaw.sh
 \`\`\`
 

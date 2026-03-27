@@ -41,8 +41,8 @@ ENV_FLAGS=""
 [ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
 
 # Set container home to the parent of the repo — .openclaw/ lives next to
-# the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
-# If user clones to ~/orcd/scratch/openclaw-engaging → ~/orcd/scratch/.openclaw/.
+# the repo (e.g., clone to ~/orcd/scratch/oclaw/openclaw-engaging →
+# ~/orcd/scratch/oclaw/.openclaw/).
 # Use $HOME when repo is under home dir to preserve symlink paths (on NFS
 # clusters, /home/user may be a symlink to /orcd/home/002/user, and other
 # symlinks like .openclaw may reference /home/user/... paths).

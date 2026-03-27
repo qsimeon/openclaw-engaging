@@ -1,8 +1,9 @@
 -- openclaw.lua — Lmod modulefile for OpenClaw on MIT Engaging HPC
 --
--- Install:
---   1. Add to ~/.bashrc:  module use ~/orcd/scratch/oclaw/openclaw-engaging/apptainer
---   2. Then:              module load openclaw
+-- setup.sh installs this file to ~/modulefiles/openclaw.lua automatically.
+-- To activate:
+--   1. Add to ~/.bashrc:  module use ~/modulefiles
+--   2. Per session:       module load openclaw
 --
 -- Or set OPENCLAW_REPO if you cloned somewhere else:
 --   OPENCLAW_REPO=~/my/path/openclaw-engaging module load openclaw

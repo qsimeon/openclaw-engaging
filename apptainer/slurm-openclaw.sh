@@ -61,7 +61,7 @@ ENV_FLAGS=""
 [ -n "${GEMINI_API_KEY:-}" ] && ENV_FLAGS="$ENV_FLAGS --env GEMINI_API_KEY=$GEMINI_API_KEY"
 
 # Set container home to the parent of the repo — .openclaw/ lives next to
-# the repo (e.g., clone to ~/openclaw-engaging → ~/.openclaw/).
+# the repo (e.g., clone to ~/orcd/scratch/oclaw/openclaw-engaging → ~/orcd/scratch/oclaw/.openclaw/).
 INSTALL_DIR="$(dirname "$REPO_DIR")"
 REAL_HOME="$(readlink -f "$HOME")"
 if [ "$(readlink -f "$INSTALL_DIR")" = "$REAL_HOME" ]; then
