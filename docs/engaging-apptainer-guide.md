@@ -50,7 +50,7 @@ over HTTPS.
 │  └────────────────────────────┼───────────┘  │
 │                               │              │
 │  .openclaw/    ◄──────────────┘  (state)     │
-│  ~/your-data/  ◄── auto-mounted             │
+│  (extra dirs: APPTAINER_BIND=... openclaw)  │
 │                               │              │
 └───────────────────────────────┼──────────────┘
                                 │ HTTPS
@@ -576,8 +576,7 @@ APPTAINER_BIND="/pool/lab-data,/scratch/$USER" openclaw agent --local --agent ma
 Add bind mounts to the SLURM script by setting `APPTAINER_BIND`:
 
 ```bash
-APPTAINER_BIND="/pool/lab-data,/scratch/$USER" \
-  sbatch apptainer/slurm-openclaw.sh
+APPTAINER_BIND="/pool/lab-data,/scratch/$USER" sbatch apptainer/slurm-openclaw.sh
 ```
 
 Or edit `slurm-openclaw.sh` to include `-B /pool/lab-data` in the
@@ -816,9 +815,9 @@ after clicking the tokenized URL.
    incognito window, or append `/?token=<your-token>` manually to
    `http://localhost:18790/`.
 
-**Finding your token** if you've lost it:
+**Finding your token** if you've lost it (run from `~/orcd/scratch/oclaw/`):
 ```bash
-python3 -c "import json; print(json.load(open('$HOME/.openclaw/openclaw.json'))['gateway']['auth']['token'])"
+python3 -c "import json; print(json.load(open('.openclaw/openclaw.json'))['gateway']['auth']['token'])"
 ```
 
 ### SSH tunnel "Connection refused"
